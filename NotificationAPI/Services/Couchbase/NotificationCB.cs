@@ -605,22 +605,26 @@ namespace NotificationAPI.Services.Couchbase
             StringBuilder stringBuilderquery = new StringBuilder();
             stringBuilderquery.Append($"SELECT n.* FROM {_bucket.Name} n WHERE n.{statusField} = $status");
 
+            // Cú pháp ANY ... SATISFIES ... IN [...] END thay vì ARRAY_CONTAINS OR ARRAY_CONTAINS.
+            // Lý do: optimizer Couchbase 6.0 không union được 2 ARRAY_CONTAINS với index DISTINCT ARRAY,
+            // dẫn tới Fetch toàn bộ doc (~12k cho em-vn) rồi filter. ANY-SATISFIES dùng được 1 lần scan
+            // với IN list → fetch chỉ doc thực sự match (vài cái).
             if (!String.IsNullOrEmpty(domain))
             {
-                stringBuilderquery.Append($" AND (ARRAY_CONTAINS(n.{domainField}, $domain) OR ARRAY_CONTAINS(n.{domainField}, '{Utils.Common.All}'))");
+                stringBuilderquery.Append($" AND ANY d IN n.{domainField} SATISFIES d IN [$domain, '{Utils.Common.All}'] END");
                 lstParam.Add(new KeyValuePair<string, object>("$domain", domain));
             }
             else
             {
-                stringBuilderquery.Append($" AND ARRAY_CONTAINS(n.{domainField}, '{Utils.Common.All}')");
+                stringBuilderquery.Append($" AND ANY d IN n.{domainField} SATISFIES d = '{Utils.Common.All}' END");
             }
 
             if (device != DeviceType.All)
             {
-                stringBuilderquery.Append(" AND (ARRAY_CONTAINS(n." + Fields(n => n.DeviceTypes) + ", $device) OR ARRAY_CONTAINS(n." + Fields(n => n.DeviceTypes) + ", " + (int)DeviceType.All + "))");
+                stringBuilderquery.Append($" AND ANY dt IN n.{Fields(n => n.DeviceTypes)} SATISFIES dt IN [$device, {(int)DeviceType.All}] END");
                 lstParam.Add(new KeyValuePair<string, object>("$device", (int)device));
             }
-            ;
+
             if (!String.IsNullOrEmpty(userId))
             {
                 stringBuilderquery.Append($" AND (n.{userIdField} = $userId OR n.{userIdField} = '{Utils.Common.All}')");
@@ -632,13 +636,14 @@ namespace NotificationAPI.Services.Couchbase
             }
             if (triggerActions != null && triggerActions.Any())
             {
-                triggerActions.Add(Utils.Common.All);
-                triggerActions = triggerActions.Distinct().ToList();
-                stringBuilderquery.Append($" AND (ARRAY_CONTAINS(n.{Fields(n => n.TriggerActions)}, '{string.Join("') OR ARRAY_CONTAINS(n." + Fields(n => n.TriggerActions) + ", '", triggerActions)}'))");
+                // Thêm 'all' rồi distinct → list các trigger client gửi + fallback 'all'
+                var triggerList = triggerActions.Concat(new[] { Utils.Common.All }).Distinct();
+                var inList = string.Join(",", triggerList.Select(t => $"'{t}'"));
+                stringBuilderquery.Append($" AND ANY ta IN n.{Fields(n => n.TriggerActions)} SATISFIES ta IN [{inList}] END");
             }
             else
             {
-                stringBuilderquery.Append($" AND ARRAY_CONTAINS(n.{Fields(n => n.TriggerActions)}, '{Utils.Common.All}')");
+                stringBuilderquery.Append($" AND ANY ta IN n.{Fields(n => n.TriggerActions)} SATISFIES ta = '{Utils.Common.All}' END");
             }
 
             stringBuilderquery.Append($" AND n.{startDateField} <= $currentDate AND n.{endDateField} >= $currentDate ORDER BY n.{orderField} ASC");
@@ -676,8 +681,8 @@ namespace NotificationAPI.Services.Couchbase
             string query = $@"
                 SELECT n.*
                 FROM `{_bucket.Name}` n
-                WHERE (ARRAY_CONTAINS(n.{deviceTypeField}, $deviceType) OR ARRAY_CONTAINS(n.{deviceTypeField}, 'all'))
-                AND (ARRAY_CONTAINS(n.{triggerActionField}, $triggerAction) OR ARRAY_CONTAINS(n.{triggerActionField}, 'all'))
+                WHERE ANY dt IN n.{deviceTypeField} SATISFIES dt IN [$deviceType, 'all'] END
+                AND ANY ta IN n.{triggerActionField} SATISFIES ta IN [$triggerAction, 'all'] END
                 AND n.{statusField} = 'Active'
                 AND n.{startDateField} <= $currentTime
                 AND n.{endDateField} >= $currentTime
@@ -813,21 +818,25 @@ namespace NotificationAPI.Services.Couchbase
             string userIdField = Fields(n => n.UserId);
 
 
+            // Cú pháp ANY ... SATISFIES ... IN [...] END thay vì ARRAY_CONTAINS OR ARRAY_CONTAINS.
+            // Lý do giống GetByDomainActiveAsync — đo trên prod: 7-30s → ~95ms (52-300x nhanh hơn)
+            // cho vn.joboko.com. Em-vn.joboko.com bottleneck do data shape (~12k doc),
+            // không fix bằng query syntax được — xử lý riêng bằng data cleanup.
             StringBuilder stringBuilderquery = new StringBuilder();
             stringBuilderquery.Append($"SELECT n.id FROM {_bucket.Name} AS n WHERE n.{lastUpdatedField} > {lastUpdatedThreshold}");
 
             if (!String.IsNullOrEmpty(domain))
             {
-                stringBuilderquery.Append($" AND (ARRAY_CONTAINS(n.{domainField},'{domain}') OR ARRAY_CONTAINS(n.{domainField}, '{Utils.Common.All}'))");
+                stringBuilderquery.Append($" AND ANY d IN n.{domainField} SATISFIES d IN ['{domain}', '{Utils.Common.All}'] END");
             }
             else
             {
-                stringBuilderquery.Append($" AND ARRAY_CONTAINS(n.{domainField}, '{Utils.Common.All}')");
+                stringBuilderquery.Append($" AND ANY d IN n.{domainField} SATISFIES d = '{Utils.Common.All}' END");
             }
 
             if (device != DeviceType.All)
             {
-                stringBuilderquery.Append($" AND (ARRAY_CONTAINS(n.{Fields(n => n.DeviceTypes)},{(int)device}) OR ARRAY_CONTAINS(n.{Fields(n => n.DeviceTypes)}, {(int)DeviceType.All}))");
+                stringBuilderquery.Append($" AND ANY dt IN n.{Fields(n => n.DeviceTypes)} SATISFIES dt IN [{(int)device}, {(int)DeviceType.All}] END");
             }
 
             if (!String.IsNullOrEmpty(userId))
@@ -840,13 +849,13 @@ namespace NotificationAPI.Services.Couchbase
             }
             if (triggerActions != null && triggerActions.Any())
             {
-                triggerActions.Add(Utils.Common.All);
-                triggerActions = triggerActions.Distinct().ToList();
-                stringBuilderquery.Append($" AND (ARRAY_CONTAINS(n.{Fields(n => n.TriggerActions)}, '{string.Join("') OR ARRAY_CONTAINS(n." + Fields(n => n.TriggerActions) + ", '", triggerActions)}'))");
+                var triggerList = triggerActions.Concat(new[] { Utils.Common.All }).Distinct();
+                var inList = string.Join(",", triggerList.Select(t => $"'{t}'"));
+                stringBuilderquery.Append($" AND ANY ta IN n.{Fields(n => n.TriggerActions)} SATISFIES ta IN [{inList}] END");
             }
             else
             {
-                stringBuilderquery.Append($" AND ARRAY_CONTAINS(n.{Fields(n => n.TriggerActions)}, '{Utils.Common.All}')");
+                stringBuilderquery.Append($" AND ANY ta IN n.{Fields(n => n.TriggerActions)} SATISFIES ta = '{Utils.Common.All}' END");
             }
             stringBuilderquery.Append($" ORDER BY n.{lastUpdatedField} DESC  LIMIT 1");
             var result = await ExecuteQueryAsync<dynamic>(stringBuilderquery.ToString(), null);
