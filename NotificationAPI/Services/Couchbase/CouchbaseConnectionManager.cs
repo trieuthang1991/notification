@@ -11,6 +11,7 @@ using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using NotificationAPI.Config;
 using System;
+using System.Threading;
 
 namespace NotificationAPI.Services.Couchbase
 {
@@ -28,33 +29,64 @@ namespace NotificationAPI.Services.Couchbase
         private readonly CouchbaseConfig _config;
         private static ILogger _logger;
 
+        // Retry config cho bootstrap. Tổng wait tối đa: 2+4+8+16 = 30s trước khi bỏ cuộc.
+        // SDK 2.7.8 không retry mặc định → 1 network blip = app crash + restart loop.
+        // Hôm 2026-06-15 prod restart 4 lần (01:21, 06:07, 10:57, 15:30) đều cùng pattern này.
+        private const int BootstrapMaxAttempts = 5;
+
         private CouchbaseConnectionManager(CouchbaseConfig config)
         {
             _config = config;
 
-            try
+            Exception lastError = null;
+            for (int attempt = 1; attempt <= BootstrapMaxAttempts; attempt++)
             {
-                _logger?.LogInformation("Bắt đầu kết nối đến Couchbase với các server: {Servers}", string.Join(",", _config.Servers));
-              
-                ClientConfiguration configCouchbase = new ClientConfiguration
+                Cluster cluster = null;
+                try
                 {
-                    Servers = _config.Servers.Select(a => new Uri(a)).ToList(),
-                    Serializer = () => new DefaultSerializer(new JsonSerializerSettings(), new JsonSerializerSettings())
-                };
-                Cluster cluster = new Cluster(configCouchbase);
+                    _logger?.LogInformation(
+                        "Bootstrap Couchbase attempt {Attempt}/{Max} với servers: {Servers}",
+                        attempt, BootstrapMaxAttempts, string.Join(",", _config.Servers));
 
-                PasswordAuthenticator authenticator = new PasswordAuthenticator(_config.Username, _config.Password);
-                cluster.Authenticate(authenticator);
-                string _bucketName = _config.BucketName;
-                _bucket = cluster.OpenBucket(_bucketName);
+                    ClientConfiguration configCouchbase = new ClientConfiguration
+                    {
+                        Servers = _config.Servers.Select(a => new Uri(a)).ToList(),
+                        Serializer = () => new DefaultSerializer(new JsonSerializerSettings(), new JsonSerializerSettings())
+                    };
+                    cluster = new Cluster(configCouchbase);
 
-                _logger?.LogInformation("Kết nối Couchbase thành công");
+                    PasswordAuthenticator authenticator = new PasswordAuthenticator(_config.Username, _config.Password);
+                    cluster.Authenticate(authenticator);
+                    _bucket = cluster.OpenBucket(_config.BucketName);
+
+                    _logger?.LogInformation("Kết nối Couchbase thành công (attempt {Attempt})", attempt);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    lastError = ex;
+                    _logger?.LogWarning(
+                        "Bootstrap attempt {Attempt}/{Max} thất bại: {Error}",
+                        attempt, BootstrapMaxAttempts, ex.Message);
+
+                    // Dispose cluster đã tạo trong lần thất bại để tránh leak socket/handle
+                    try { cluster?.Dispose(); } catch { /* best effort */ }
+
+                    if (attempt < BootstrapMaxAttempts)
+                    {
+                        int delaySec = (int)Math.Pow(2, attempt); // 2s, 4s, 8s, 16s
+                        _logger?.LogInformation("Chờ {Delay}s trước khi thử lại bootstrap...", delaySec);
+                        Thread.Sleep(TimeSpan.FromSeconds(delaySec));
+                    }
+                }
             }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Lỗi khi kết nối đến Couchbase: {Message}", ex.Message);
-                throw new Exception($"Lỗi khi kết nối đến Couchbase: {ex.Message}", ex);
-            }
+
+            _logger?.LogError(lastError,
+                "Tất cả {Max} lần bootstrap Couchbase đều thất bại — bỏ cuộc",
+                BootstrapMaxAttempts);
+            throw new Exception(
+                $"Lỗi khi kết nối đến Couchbase sau {BootstrapMaxAttempts} lần thử: {lastError?.Message}",
+                lastError);
         }
        
 
