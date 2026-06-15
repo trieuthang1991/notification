@@ -12,6 +12,7 @@ using NotificationAPI.DTO.Filter;
 using NotificationAPI.Enums;
 using NotificationAPI.Models;
 using NotificationAPI.Utils;
+using StackExchange.Redis;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -40,6 +41,10 @@ namespace NotificationAPI.Services.Couchbase
         private readonly CouchbaseConfig _config;
         private readonly ILogger<NotificationCB> _logger;
 
+        // Redis (nullable — nếu null thì bypass cache layer)
+        private readonly IConnectionMultiplexer? _redis;
+        private readonly RedisConfig _redisConfig;
+
         /// <summary>
         /// Cấu hình JsonSerializerSettings để tránh việc trùng lặp giá trị mặc định
         /// </summary>
@@ -49,9 +54,16 @@ namespace NotificationAPI.Services.Couchbase
             DefaultValueHandling = DefaultValueHandling.Populate
         };
 
-        public NotificationCB(IOptions<CouchbaseConfig> config, ILogger<NotificationCB> logger)
+        public NotificationCB(
+            IOptions<CouchbaseConfig> config,
+            ILogger<NotificationCB> logger,
+            IConnectionMultiplexer? redis,
+            RedisConfig redisConfig)
         {
             _logger = logger;
+            _redis = redis;
+            _redisConfig = redisConfig ?? new RedisConfig();
+
             _logger.LogInformation("Khởi tạo NotificationCB...");
 
             // Sử dụng CouchbaseConnectionManager để lấy bucket
@@ -59,7 +71,114 @@ namespace NotificationAPI.Services.Couchbase
             _bucket = connectionManager.GetBucket();
             _preKey = config.Value.PreKey;
             _config = config.Value;
-            _logger.LogInformation("Khởi tạo NotificationCB thành công");
+            _logger.LogInformation(
+                "Khởi tạo NotificationCB thành công (Redis cache: {RedisState})",
+                _redis != null && _redis.IsConnected ? "ENABLED" : "DISABLED");
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // Redis cache layer: per (domain, device, userId, triggerActions)
+        // ─────────────────────────────────────────────────────────────────
+
+        private bool CacheEnabled => _redis != null && _redisConfig.Enabled && _redis.IsConnected;
+
+        /// <summary>
+        /// Hash key cho 1 domain. Mọi (device, userId, triggers) entry cho domain này
+        /// đều nằm trong cùng 1 hash → DEL hash = invalidate hết.
+        /// </summary>
+        private string BuildDomainHashKey(string? domain)
+            => $"{_redisConfig.KeyPrefix}dom:{domain ?? "*"}";
+
+        /// <summary>
+        /// Field trong hash, encode (device, userId, triggers) ổn định.
+        /// triggers được sort + distinct để cùng tập trigger nhưng khác thứ tự cho chung 1 key.
+        /// </summary>
+        private static string BuildHashField(DeviceType device, string? userId, List<string>? triggerActions)
+        {
+            var ta = (triggerActions == null || triggerActions.Count == 0)
+                ? Utils.Common.All
+                : string.Join(",", triggerActions.Distinct().OrderBy(x => x, StringComparer.Ordinal));
+            return $"{(int)device}:{userId ?? "*"}:{ta}";
+        }
+
+        /// <summary>
+        /// Đọc maxLastUpdated từ Redis hash. Return null nếu cache miss hoặc Redis down.
+        /// </summary>
+        private async Task<long?> TryGetCachedMaxLuAsync(string? domain, DeviceType device, string? userId, List<string>? triggerActions)
+        {
+            if (!CacheEnabled) return null;
+            try
+            {
+                var db = _redis!.GetDatabase();
+                var val = await db.HashGetAsync(BuildDomainHashKey(domain), BuildHashField(device, userId, triggerActions));
+                if (val.HasValue && long.TryParse(val.ToString(), out var lu)) return lu;
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Redis HashGet lỗi (graceful degrade)");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Ghi maxLastUpdated vào Redis hash + set TTL trên cả hash.
+        /// Lỗi Redis được swallow để không ảnh hưởng request.
+        /// </summary>
+        private async Task SetCachedMaxLuAsync(string? domain, DeviceType device, string? userId, List<string>? triggerActions, long maxLu)
+        {
+            if (!CacheEnabled) return;
+            try
+            {
+                var db = _redis!.GetDatabase();
+                var hashKey = BuildDomainHashKey(domain);
+                var field = BuildHashField(device, userId, triggerActions);
+                var batch = db.CreateBatch();
+                _ = batch.HashSetAsync(hashKey, field, maxLu);
+                _ = batch.KeyExpireAsync(hashKey, TimeSpan.FromSeconds(_redisConfig.CacheTtlSeconds));
+                batch.Execute();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Redis HashSet lỗi (graceful degrade)");
+            }
+        }
+
+        /// <summary>
+        /// Xoá toàn bộ cache cho mọi domain notification match. Gọi sau khi
+        /// UpsertAsync/UpdateStatus/Delete thành công.
+        /// </summary>
+        private void InvalidateMaxLuFor(NotificationConfig notification)
+        {
+            if (!CacheEnabled || notification == null) return;
+            try
+            {
+                var db = _redis!.GetDatabase();
+                var domains = notification.Domains;
+                if (domains == null || domains.Count == 0 || domains.Contains(Utils.Common.All))
+                {
+                    // Notification có domain="all" hoặc không có domain rõ → ảnh hưởng mọi domain.
+                    // Pattern unlink: dùng SCAN + UNLINK để không block server.
+                    var endpoints = _redis!.GetEndPoints();
+                    foreach (var ep in endpoints)
+                    {
+                        var server = _redis.GetServer(ep);
+                        if (server.IsConnected && !server.IsReplica)
+                        {
+                            foreach (var key in server.Keys(pattern: $"{_redisConfig.KeyPrefix}dom:*", pageSize: 200))
+                                _ = db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+                        }
+                    }
+                    return;
+                }
+
+                foreach (var d in domains.Distinct())
+                    _ = db.KeyDeleteAsync(BuildDomainHashKey(d), CommandFlags.FireAndForget);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Redis invalidate lỗi (graceful degrade)");
+            }
         }
 
         /// <summary>
@@ -254,6 +373,10 @@ namespace NotificationAPI.Services.Couchbase
                 }
 
                 _logger.LogInformation("Đã lưu thông báo với ID: {Id}", id);
+
+                // Invalidate Redis cache để user kế tiếp thấy notification mới ngay.
+                InvalidateMaxLuFor(notification);
+
                 return id;
             }
             catch (Exception ex)
@@ -272,10 +395,13 @@ namespace NotificationAPI.Services.Couchbase
         {
             try
             {
+                // Load doc TRƯỚC khi xoá để biết Domains cho cache invalidate.
+                var existing = _bucket.Get<NotificationConfig>(CreateKey(id));
                 var result = await _bucket.RemoveAsync(CreateKey(id));
                 if (result.Success)
                 {
                     _logger.LogInformation("Đã xóa thông báo với ID: {Id}", id);
+                    if (existing.Success) InvalidateMaxLuFor(existing.Value);
                     return true;
                 }
                 else if (result == null)
@@ -740,7 +866,9 @@ namespace NotificationAPI.Services.Couchbase
                 {
                     objCache.Value.Status = statusValue;
                     objCache.Value.LastUpdated = XMUtility.XUtility.UnixTime(DateTime.Now);
-                    return _bucket.Upsert(key, objCache.Value).Success;
+                    var ok = _bucket.Upsert(key, objCache.Value).Success;
+                    if (ok) InvalidateMaxLuFor(objCache.Value);
+                    return ok;
                 }
             }
             catch (Exception ex)
@@ -813,53 +941,66 @@ namespace NotificationAPI.Services.Couchbase
 
         public async Task<bool> HasRecentUpdatesInDomainAsync(string domain, DeviceType device, string userId, List<string> triggerActions, long lastUpdatedThreshold)
         {
+            // 1. Cache layer (Redis Hash) — key per (domain, device, userId, triggers)
+            //    Đo prod: HasRecent chiếm ~68% slow query (29,364/ngày), p50 4.6s do Couchbase queue.
+            //    Cache hit → bỏ qua DB, so sánh in-memory với T client gửi.
+            var cached = await TryGetCachedMaxLuAsync(domain, device, userId, triggerActions);
+            if (cached.HasValue)
+            {
+                return cached.Value > lastUpdatedThreshold;
+            }
+
+            // 2. Cache miss → query Couchbase MAX(last_updated) cho tuple đầy đủ.
+            //    Logic filter giữ nguyên Fix #C — chỉ đổi SELECT để lấy MAX thay vì tồn tại.
+            var maxLu = await QueryMaxLastUpdatedAsync(domain, device, userId, triggerActions);
+
+            // 3. Cache result. Lỗi Redis được swallow trong helper, không ảnh hưởng request.
+            await SetCachedMaxLuAsync(domain, device, userId, triggerActions, maxLu);
+
+            return maxLu > lastUpdatedThreshold;
+        }
+
+        /// <summary>
+        /// Query Couchbase: MAX(last_updated) cho mọi notification match
+        /// (domain, device, userId, triggerActions). Logic filter y hệt
+        /// HasRecentUpdatesInDomainAsync cũ — chỉ đổi SELECT.
+        /// </summary>
+        private async Task<long> QueryMaxLastUpdatedAsync(string domain, DeviceType device, string userId, List<string> triggerActions)
+        {
             string domainField = Fields(n => n.Domains);
             string lastUpdatedField = Fields(n => n.LastUpdated);
             string userIdField = Fields(n => n.UserId);
 
+            StringBuilder sb = new StringBuilder();
+            sb.Append($"SELECT MAX(n.{lastUpdatedField}) AS max_lu FROM {_bucket.Name} AS n WHERE n.{lastUpdatedField} IS NOT MISSING");
 
-            // Cú pháp ANY ... SATISFIES ... IN [...] END thay vì ARRAY_CONTAINS OR ARRAY_CONTAINS.
-            // Lý do giống GetByDomainActiveAsync — đo trên prod: 7-30s → ~95ms (52-300x nhanh hơn)
-            // cho vn.joboko.com. Em-vn.joboko.com bottleneck do data shape (~12k doc),
-            // không fix bằng query syntax được — xử lý riêng bằng data cleanup.
-            StringBuilder stringBuilderquery = new StringBuilder();
-            stringBuilderquery.Append($"SELECT n.id FROM {_bucket.Name} AS n WHERE n.{lastUpdatedField} > {lastUpdatedThreshold}");
-
-            if (!String.IsNullOrEmpty(domain))
-            {
-                stringBuilderquery.Append($" AND ANY d IN n.{domainField} SATISFIES d IN ['{domain}', '{Utils.Common.All}'] END");
-            }
+            if (!string.IsNullOrEmpty(domain))
+                sb.Append($" AND ANY d IN n.{domainField} SATISFIES d IN ['{domain}', '{Utils.Common.All}'] END");
             else
-            {
-                stringBuilderquery.Append($" AND ANY d IN n.{domainField} SATISFIES d = '{Utils.Common.All}' END");
-            }
+                sb.Append($" AND ANY d IN n.{domainField} SATISFIES d = '{Utils.Common.All}' END");
 
             if (device != DeviceType.All)
-            {
-                stringBuilderquery.Append($" AND ANY dt IN n.{Fields(n => n.DeviceTypes)} SATISFIES dt IN [{(int)device}, {(int)DeviceType.All}] END");
-            }
+                sb.Append($" AND ANY dt IN n.{Fields(n => n.DeviceTypes)} SATISFIES dt IN [{(int)device}, {(int)DeviceType.All}] END");
 
-            if (!String.IsNullOrEmpty(userId))
-            {
-                stringBuilderquery.Append($" AND (n.{userIdField} = '{userId}' OR n.{userIdField} = '{Utils.Common.All}')");
-            }
+            if (!string.IsNullOrEmpty(userId))
+                sb.Append($" AND (n.{userIdField} = '{userId}' OR n.{userIdField} = '{Utils.Common.All}')");
             else
-            {
-                stringBuilderquery.Append($" AND n.{userIdField} = '{Utils.Common.All}'");
-            }
+                sb.Append($" AND n.{userIdField} = '{Utils.Common.All}'");
+
             if (triggerActions != null && triggerActions.Any())
             {
                 var triggerList = triggerActions.Concat(new[] { Utils.Common.All }).Distinct();
                 var inList = string.Join(",", triggerList.Select(t => $"'{t}'"));
-                stringBuilderquery.Append($" AND ANY ta IN n.{Fields(n => n.TriggerActions)} SATISFIES ta IN [{inList}] END");
+                sb.Append($" AND ANY ta IN n.{Fields(n => n.TriggerActions)} SATISFIES ta IN [{inList}] END");
             }
             else
             {
-                stringBuilderquery.Append($" AND ANY ta IN n.{Fields(n => n.TriggerActions)} SATISFIES ta = '{Utils.Common.All}' END");
+                sb.Append($" AND ANY ta IN n.{Fields(n => n.TriggerActions)} SATISFIES ta = '{Utils.Common.All}' END");
             }
-            stringBuilderquery.Append($" ORDER BY n.{lastUpdatedField} DESC  LIMIT 1");
-            var result = await ExecuteQueryAsync<dynamic>(stringBuilderquery.ToString(), null);
-            return result.Count > 0;
+
+            var rows = await ExecuteQueryAsync<dynamic>(sb.ToString(), null);
+            if (rows == null || rows.Count == 0 || rows[0]?.max_lu == null) return 0L;
+            return Convert.ToInt64(rows[0].max_lu);
         }
 
         /// <summary>
@@ -1168,6 +1309,7 @@ namespace NotificationAPI.Services.Couchbase
                                 objCacheConfig.Value.Status = StatusNotification.Success;
                                 objCacheConfig.Value.LastUpdated = XMUtility.XUtility.UnixTime(DateTime.Now);
                                 _bucket.Upsert(configKey, objCacheConfig.Value, time);
+                                InvalidateMaxLuFor(objCacheConfig.Value);
                             }
                             else
                             {
@@ -1176,6 +1318,7 @@ namespace NotificationAPI.Services.Couchbase
                                     objCacheConfig.Value.Status = StatusNotification.Success;
                                     objCacheConfig.Value.LastUpdated = XMUtility.XUtility.UnixTime(DateTime.Now);
                                     _bucket.Upsert(configKey, objCacheConfig.Value, time);
+                                    InvalidateMaxLuFor(objCacheConfig.Value);
                                 }
                             }
                         }
