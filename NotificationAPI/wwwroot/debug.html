@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Notification Client</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        #log-container {
+            height: 400px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 5px;
+        }
+        .log-time {
+            color: #6c757d;
+            font-size: 0.85em;
+        }
+        .log-message {
+            color: #212529;
+        }
+        .log-error {
+            color: #dc3545;
+        }
+        .log-warning {
+            color: #ffc107;
+        }
+        .log-info {
+            color: #0d6efd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Debug Notification Client</h1>
+        
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Cấu hình</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="config-form">
+                            <div class="mb-3">
+                                <label for="apiUrl" class="form-label">API URL</label>
+                                <input type="text" class="form-control" id="apiUrl" value="/api/Notification">
+                            </div>
+                            <div class="mb-3">
+                                <label for="domain" class="form-label">Domain</label>
+                                <input type="text" class="form-control" id="domain" value="">
+                            </div>
+                            <div class="mb-3">
+                                <label for="userId" class="form-label">User ID</label>
+                                <input type="text" class="form-control" id="userId" value="debug-user">
+                            </div>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="debug" checked>
+                                <label class="form-check-label" for="debug">Debug Mode</label>
+                            </div>
+                            <button type="button" id="start-btn" class="btn btn-primary">Khởi chạy</button>
+                            <button type="button" id="clear-logs-btn" class="btn btn-secondary">Xóa logs</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0">Console Logs</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="log-container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Kết quả</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="container-link" class="mb-3 p-3 border rounded">
+                            <h6>Container Link (<span id="link-count">0</span>)</h6>
+                        </div>
+                        <div id="notification-container" class="mb-3 p-3 border rounded">
+                            <h6>Notification Container</h6>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/notification-client.js"></script>
+    <script>
+        // Override console.log to capture logs
+        (function() {
+            var originalConsoleLog = console.log;
+            var logContainer = document.getElementById('log-container');
+            
+            console.log = function() {
+                // Call original console.log
+                originalConsoleLog.apply(console, arguments);
+                
+                // Format arguments
+                var message = Array.prototype.slice.call(arguments).map(function(arg) {
+                    if (typeof arg === 'object') {
+                        try {
+                            return JSON.stringify(arg, null, 2);
+                        } catch (e) {
+                            return arg.toString();
+                        }
+                    }
+                    return arg;
+                }).join(' ');
+                
+                // Create log entry
+                var logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                
+                // Add timestamp
+                var timeSpan = document.createElement('span');
+                timeSpan.className = 'log-time';
+                timeSpan.textContent = new Date().toLocaleTimeString() + ': ';
+                logEntry.appendChild(timeSpan);
+                
+                // Add message
+                var messageSpan = document.createElement('span');
+                messageSpan.className = 'log-message';
+                
+                // Highlight NotificationClient logs
+                if (message.includes('[NotificationClient]')) {
+                    messageSpan.className += ' log-info';
+                }
+                
+                messageSpan.textContent = message;
+                logEntry.appendChild(messageSpan);
+                
+                // Add to container and scroll to bottom
+                logContainer.appendChild(logEntry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            };
+        })();
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set default domain
+            document.getElementById('domain').value = window.location.hostname;
+            
+            // Start button click handler
+            document.getElementById('start-btn').addEventListener('click', function() {
+                var config = {
+                    apiUrl: document.getElementById('apiUrl').value,
+                    domain: document.getElementById('domain').value,
+                    userId: document.getElementById('userId').value,
+                    debug: document.getElementById('debug').checked,
+                    containerLink: '#container-link',
+                    linkCountContainer: '#link-count'
+                };
+                
+                console.log('Starting NotificationClient with config:', config);
+                
+                // Create and run notification client
+                var notificationClient = new NotificationClient(config);
+                notificationClient.run();
+            });
+            
+            // Clear logs button click handler
+            document.getElementById('clear-logs-btn').addEventListener('click', function() {
+                document.getElementById('log-container').innerHTML = '';
+            });
+        });
+    </script>
+</body>
+</html>

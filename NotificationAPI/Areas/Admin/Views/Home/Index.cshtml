@@ -1,0 +1,42 @@
+@{
+    ViewData["Title"] = "Trang chủ quản trị";
+}
+
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Chào mừng đến với hệ thống quản trị thông báo</h5>
+                <p class="card-text">Sử dụng menu bên trái để điều hướng đến các chức năng quản lý.</p>
+                <a href="@Url.Action("Index", "Notification", new { area = "Admin" })" class="btn btn-primary">
+                    <i class="bi bi-bell"></i> Quản lý thông báo
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                Thông báo gần đây
+            </div>
+            <div class="card-body">
+                <p class="card-text">Danh sách các thông báo được tạo hoặc cập nhật gần đây.</p>
+                <a href="@Url.Action("Index", "Notification", new { area = "Admin" })" class="btn btn-outline-primary">Xem tất cả</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                Thống kê
+            </div>
+            <div class="card-body">
+                <p class="card-text">Thống kê về số lượng thông báo theo trạng thái.</p>
+                <a href="#" class="btn btn-outline-primary">Xem báo cáo</a>
+            </div>
+        </div>
+    </div>
+</div>

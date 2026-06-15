@@ -1,0 +1,313 @@
+HƯỚNG DẪN SỬ DỤNG HỆ THỐNG NOTIFICATIONAPI
+
+1. GIỚI THIỆU
+NotificationAPI là hệ thống quản lý và hiển thị thông báo đa nền tảng, cho phép tạo và quản lý các loại thông báo khác nhau (popup, HTML, link, modal) trên nhiều trang web và ứng dụng.
+
+2. ĐĂNG NHẬP VÀO HỆ THỐNG
+- Truy cập vào địa chỉ của hệ thống NotificationAPI
+- Nhập thông tin đăng nhập (tên đăng nhập và mật khẩu)
+- Nhấn nút "Đăng nhập"
+
+3. QUẢN LÝ THÔNG BÁO
+3.1. Xem danh sách thông báo
+- Từ menu bên trái, chọn "Quản lý thông báo"
+- Sử dụng các bộ lọc để lọc thông báo theo trạng thái, loại hiển thị
+
+3.2. Tạo thông báo mới
+- Từ trang danh sách thông báo, nhấn nút "Thêm mới"
+- Điền các thông tin cần thiết:
+  * Thông tin cơ bản: Tiêu đề, Nội dung, Loại hiển thị, Trạng thái, Thứ tự ưu tiên
+  * Phạm vi hiển thị: Tên miền, Người dùng, Trang hiển thị, Trang loại trừ, Thiết bị, Hành động kích hoạt
+  * Thời gian và tần suất: Ngày bắt đầu, Ngày kết thúc, Số lần hiển thị tối đa, Tần suất hiển thị
+  * Thuộc tính đặc biệt: Thuộc tính 1 (Chỉ hiển thị khi có hành động kích hoạt), Thuộc tính 2 (Gửi dữ liệu click về server), Thuộc tính 3 (Không làm phiền người dùng)
+  * Thông tin bổ sung: Cho phép đóng popup, Vị trí hiển thị HTML, Link trực tiếp
+- Nhấn nút "Lưu" để tạo thông báo
+
+3.3. Tạo nhiều thông báo cùng lúc
+- Từ trang danh sách thông báo, nhấn nút "Tạo nhiều thông báo"
+- Điền thông tin cơ bản giống như khi tạo một thông báo
+- Trong phần "Danh sách ID người dùng", nhập các ID người dùng, mỗi ID trên một dòng hoặc ngăn cách bằng dấu phẩy
+- Nhấn nút "Tạo thông báo"
+
+3.4. Chỉnh sửa thông báo
+- Từ trang danh sách thông báo, nhấn biểu tượng "Chỉnh sửa" (hình cây bút)
+- Thực hiện các thay đổi cần thiết
+- Nhấn nút "Lưu" để cập nhật thông báo
+
+3.5. Thay đổi trạng thái thông báo
+- Từ trang danh sách thông báo, nhấn biểu tượng "Kích hoạt/Vô hiệu hóa"
+- Xác nhận thay đổi trạng thái
+
+3.6. Xóa thông báo
+- Từ trang danh sách thông báo, nhấn biểu tượng "Xóa" (hình thùng rác)
+- Xác nhận việc xóa thông báo
+
+4. CẤU HÌNH CÁC LOẠI THÔNG BÁO
+4.1. Thông báo Popup
+- Hiển thị ở góc trên bên phải của trang web
+- Cấu hình đặc biệt: Cho phép đóng popup, Thứ tự ưu tiên
+
+4.2. Thông báo HTML
+- Chèn vào một vị trí cụ thể trên trang web
+- Cấu hình đặc biệt: Vị trí hiển thị HTML (selector CSS), Nội dung HTML
+
+4.3. Thông báo Link
+- Chèn vào container được chỉ định
+- Cấu hình đặc biệt: Nội dung (đường dẫn), Tiêu đề (văn bản hiển thị), Link trực tiếp
+
+4.4. Thông báo Modal
+- Hiển thị ở giữa trang web, sử dụng Bootstrap Modal
+- Cấu hình đặc biệt: Vị trí hiển thị HTML (selector CSS), Cho phép đóng
+
+4.5. Cấu hình Tracking Link
+- Tracking Link là tính năng cho phép theo dõi tương tác của người dùng với các link trong nội dung thông báo
+- Để cấu hình Tracking Link, thêm class `notification-track-click` vào các phần tử có thể click trong nội dung HTML
+- Có thể áp dụng cho các phần tử <a>, <button> hoặc bất kỳ phần tử nào có sự kiện click
+- Ví dụ HTML với Tracking Link:
+  ```html
+  <div class="custom-notification">
+    <h4>Khuyến mãi đặc biệt</h4>
+    <p>Giảm giá 50% cho tất cả sản phẩm mới!</p>
+    <a href="/khuyen-mai" class="btn btn-primary notification-track-click">Xem ngay</a>
+    <button class="btn btn-secondary notification-track-click" onclick="showDetails()">Chi tiết</button>
+  </div>
+  ```
+- Khi người dùng click vào phần tử có class `notification-track-click`, hệ thống sẽ:
+  * Đánh dấu thông báo đã được xem
+  * Gửi dữ liệu click về server nếu thông báo có Attribute 2
+  * Không hiển thị lại thông báo nếu có Attribute 3
+- Có thể sử dụng Tracking Link trong tất cả các loại thông báo (Popup, HTML, Modal)
+- Tracking Link hoạt động cả với các link được chèn động trong nội dung HTML và các link được tạo từ JavaScript
+- Để theo dõi tất cả các link trong một container, có thể thêm class `notification-track-click` vào container cha
+
+5. TÍCH HỢP VÀO TRANG WEB
+5.1. Thêm thư viện NotificationClient
+```html
+<!-- CSS cho thông báo -->
+<link rel="stylesheet" href="https://your-notification-api-domain/css/notification-client.css">
+
+<!-- Thư viện JavaScript -->
+<script src="https://your-notification-api-domain/js/notification-client.js"></script>
+
+<!-- Khởi tạo NotificationClient -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var notificationClient = new NotificationClient({
+        apiUrl: 'https://your-notification-api-domain/api/Notification',
+        domain: window.location.hostname,
+        userId: 'user123', // Thay bằng ID người dùng thực tế hoặc 'all'
+        containerLink: '#container-link', // Selector cho container chứa các link
+        linkCountContainer: '#link-count', // Selector cho phần tử hiển thị số lượng link
+        debug: false
+    });
+
+    notificationClient.run();
+});
+</script>
+```
+
+5.2. Chuẩn bị các phần tử HTML cần thiết
+```html
+<!-- Container cho thông báo dạng link -->
+<div id="container-link">
+    <h6>Thông báo (<span id="link-count">0</span>)</h6>
+</div>
+
+<!-- Container cho thông báo dạng HTML -->
+<div id="notification-container"></div>
+
+<!-- Modal cho thông báo dạng modal -->
+<div class="modal fade" id="notification-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body"></div>
+        </div>
+    </div>
+</div>
+```
+
+6. TẠO THÔNG BÁO TỪ HỆ THỐNG BÊN NGOÀI
+Gửi request POST đến `/api/Notification/external` với body:
+```json
+{
+  "apiKey": "api_key_1",
+  "domains": ["example.com"],
+  "userId": "all",
+  "pageShows": [{"value": "all"}],
+  "showTypes": [1],
+  "title": "Thông báo mới",
+  "content": "Nội dung thông báo",
+  "startDate": 1712851200,
+  "endDate": 1715443200,
+  "maxShow": 10,
+  "order": 1,
+  "attributes": [3],
+  "deviceTypes": [0]
+}
+```
+
+7. MẸO VÀ THỦ THUẬT
+7.1. Sử dụng thuộc tính đặc biệt
+- Thuộc tính 1: Chỉ hiển thị khi có hành động kích hoạt
+- Thuộc tính 2: Gửi dữ liệu click về server
+- Thuộc tính 3: Không làm phiền người dùng (đánh dấu đã xem khi click)
+
+7.2. Tối ưu hóa hiển thị thông báo
+- Sử dụng Thứ tự ưu tiên để kiểm soát thứ tự hiển thị
+- Sử dụng Tần suất hiển thị để tránh hiển thị quá nhiều thông báo
+- Sử dụng Trang loại trừ để tránh hiển thị trên các trang không phù hợp
+
+7.3. Sử dụng HTML trong nội dung
+Thêm class `notification-track-click` vào các phần tử có thể click để theo dõi tương tác.
+
+8. KHẮC PHỤC SỰ CỐ
+8.1. Thông báo không hiển thị
+- Kiểm tra trạng thái thông báo (Active/Inactive)
+- Kiểm tra tên miền, trang, ID người dùng
+- Kiểm tra thời gian hiển thị
+- Kiểm tra số lần hiển thị tối đa
+- Kiểm tra thiết bị
+
+8.2. Lỗi khi tạo hoặc cập nhật thông báo
+- Kiểm tra các trường bắt buộc
+- Kiểm tra định dạng ngày tháng
+- Kiểm tra kết nối Couchbase
+
+8.3. Thông báo HTML không hiển thị đúng vị trí
+- Kiểm tra selector CSS
+- Kiểm tra phần tử có tồn tại trên trang web
+- Kiểm tra console browser
+
+9. CHI TIẾT VỀ CÁC THÔNG TIN CẤU HÌNH THÔNG BÁO
+
+9.1. Thông tin cơ bản
+- Mã định danh: Mã duy nhất của thông báo, được tạo tự động nếu không cung cấp
+- Tiêu đề: Tiêu đề của thông báo
+- Nội dung: Nội dung của thông báo, có thể chứa HTML
+- Trạng thái: Trạng thái hoạt động của thông báo (Kích hoạt hoặc Vô hiệu hóa)
+- Thứ tự ưu tiên: Quyết định thứ tự hiển thị khi có nhiều thông báo. Thông báo có số thứ tự nhỏ hơn sẽ được hiển thị trước. Ví dụ: thông báo có thứ tự 1 sẽ hiển thị trước thông báo có thứ tự 2.
+- Thời gian cập nhật: Thời điểm cập nhật gần nhất của thông báo
+
+9.2. Phạm vi hiển thị
+- Tên miền: Danh sách các tên miền mà thông báo sẽ áp dụng (ví dụ: "example.com", "mydomain.com")
+- Người dùng: ID người dùng nhận thông báo, có thể là "all" (tất cả người dùng) hoặc ID cụ thể
+- Trang hiển thị: Danh sách các trang sẽ hiển thị thông báo (ví dụ: "/trang-chu", "/san-pham")
+- Trang loại trừ: Danh sách các trang sẽ không hiển thị thông báo (ví dụ: "/dang-nhap", "/dang-ky")
+- Thiết bị: Các loại thiết bị mà thông báo sẽ hiển thị (Tất cả, Website, Mobile Web, Mobile App)
+
+9.3. Thời gian và tần suất
+- Ngày bắt đầu: Thời điểm bắt đầu hiển thị thông báo
+- Ngày kết thúc: Thời điểm kết thúc hiển thị thông báo
+- Số lần hiển thị tối đa: Số lần tối đa thông báo được hiển thị cho mỗi người dùng (0: không giới hạn)
+- Tần suất hiển thị: Khoảng thời gian giữa các lần hiển thị thông báo (tính bằng giây, 0: hiển thị mỗi lần truy cập)
+
+9.4. Kiểu hiển thị và thuộc tính
+- Kiểu hiển thị: Loại thông báo sẽ được hiển thị (Popup, HTML, Link, Modal)
+- Thuộc tính đặc biệt: Các tính năng bổ sung của thông báo:
+  * Thuộc tính 1: Lấy lại nội dung khi load trang
+  * Thuộc tính 2: Gửi dữ liệu click về server, giúp theo dõi tương tác của người dùng
+  * Thuộc tính 3: Không làm phiền người dùng, thông báo sẽ không hiển thị lại sau khi người dùng đã tương tác
+  * Có thể kết hợp nhiều thuộc tính (ví dụ: sử dụng cả thuộc tính 2 và 3)
+- Thông tin bổ sung:
+  * Cho phép đóng popup: Cho phép người dùng đóng popup (Có/Không)
+  * Vị trí hiển thị HTML: Selector CSS chỉ định vị trí chèn nội dung HTML (ví dụ: "#notification-container")
+  * Link trực tiếp: Nội dung là đường dẫn trực tiếp (Có/Không)
+
+9.5. Cấu hình đường dẫn
+Mỗi đường dẫn trong phần Trang hiển thị và Trang loại trừ có các thông tin:
+- Loại đường dẫn: Xác định cách lấy đường dẫn (Chỉ lấy path hoặc lấy cả path và query)
+- Cách so sánh: Phương thức so sánh đường dẫn (So sánh chính xác hoặc sử dụng biểu thức chính quy)
+- Giá trị: Đường dẫn cần so sánh (ví dụ: "/trang-chu" hoặc "all" cho tất cả các trang)
+
+9.6. Ví dụ về cấu hình thông báo hoàn chỉnh
+```json
+{
+  "id": "popup_welcome_message",
+  "domains": ["example.com", "subdomain.example.com"],
+  "user_id": "all",
+  "page_shows": [
+    {
+      "clt": 0,
+      "cltg": 0,
+      "value": "all"
+    }
+  ],
+  "page_excludes": [
+    {
+      "clt": 0,
+      "cltg": 0,
+      "value": "/login"
+    },
+    {
+      "clt": 0,
+      "cltg": 0,
+      "value": "/register"
+    }
+  ],
+  "show_types": [1],
+  "title": "Chào mừng đến với website của chúng tôi!",
+  "content": "<p>Chúng tôi rất vui mừng được chào đón bạn.</p><p>Hãy khám phá các tính năng mới nhất của chúng tôi!</p>",
+  "info_more": {
+    "popup_dismissable": true,
+    "html_display_location": "",
+    "is_direct_link": false
+  },
+  "start_date": 1712851200,
+  "end_date": 1715443200,
+  "max_show": 3,
+  "frequency": 86400,
+  "ord": 1,
+  "attributes": [3],
+  "status": 1,
+  "device_types": [1],
+  "last_updated": 1712851200
+}
+```
+
+Trong ví dụ này:
+- Thông báo sẽ hiển thị dưới dạng popup cho tất cả người dùng trên các tên miền example.com và subdomain.example.com
+- Thông báo sẽ hiển thị trên tất cả các trang ngoại trừ trang "/login" và "/register"
+- Mỗi người dùng sẽ chỉ thấy thông báo tối đa 3 lần
+- Thông báo sẽ hiển thị lại sau mỗi 24 giờ (86400 giây)
+- Thông báo có thuộc tính 3 (Không làm phiền người dùng), nghĩa là sẽ được đánh dấu đã xem khi người dùng click vào
+- Thông báo sẽ hiển thị trên tất cả các thiết bị (device_types: [1])
+
+9.7. Lưu ý quan trọng khi sử dụng các fields
+
+1. **Thời gian (StartDate, EndDate, LastUpdated)**:
+   - Luôn sử dụng định dạng Unix timestamp (số giây từ 1/1/1970)
+   - Có thể sử dụng hàm XMUtility.XUtility.UnixTime(DateTime) để chuyển đổi từ DateTime sang Unix timestamp
+
+2. **PageShows và PageExcludes**:
+   - Khi muốn áp dụng cho tất cả các trang, sử dụng giá trị "all"
+   - Đường dẫn nên bắt đầu bằng dấu "/" (ví dụ: "/trang-chu")
+   - Có thể sử dụng biểu thức chính quy (Regex) bằng cách đặt CLTG = 1
+
+3. **ShowTypes**:
+   - Có thể chọn nhiều loại hiển thị cùng lúc (ví dụ: [1, 2] để hiển thị cả Popup và HTML)
+   - Đối với ShowType = 2 (HTML), cần chỉ định HtmlDisplayLocation
+   - Đối với ShowType = 3 (Link), nội dung (Content) sẽ được sử dụng làm đường dẫn
+   - Đối với ShowType = 4 (Modal), cần có phần tử modal trên trang
+
+4. **Attributes**:
+   - Attribute 1: Lấy lại nội dung khi load trang
+   - Attribute 2: Gửi dữ liệu click về server, giúp theo dõi tương tác của người dùng
+   - Attribute 3: Không làm phiền người dùng, thông báo sẽ không hiển thị lại sau khi người dùng đã tương tác
+   - Có thể kết hợp nhiều thuộc tính (ví dụ: [2, 3])
+
+5. **Cấu hình Tracking Link**:
+   - Để theo dõi tương tác của người dùng với các link trong nội dung thông báo, thêm class `notification-track-click` vào các phần tử có thể click
+   - Ví dụ: `<a href="/premium" class="btn btn-primary notification-track-click">Xem chi tiết</a>`
+   - Khi người dùng click vào các phần tử có class này, hệ thống sẽ tự động gọi hàm `_markNotificationAsSeen` để đánh dấu thông báo đã được xem
+   - Nếu thông báo có Attribute 2, dữ liệu click sẽ được gửi về server
+   - Nếu thông báo có Attribute 3, thông báo sẽ không hiển thị lại sau khi người dùng đã click
+
+6. **DeviceTypes**:
+   - Sử dụng DeviceType.All (1) để hiển thị trên tất cả các thiết bị
+   - Sử dụng DeviceType.Website (2) chỉ cho máy tính
+   - Sử dụng DeviceType.MobileWeb (3) chỉ cho trình duyệt trên thiết bị di động
+   - Sử dụng DeviceType.Mobile (4) chỉ cho ứng dụng di động

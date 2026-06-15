@@ -1,0 +1,64 @@
+@model NotificationAPI.Models.UserLogin
+@{
+    ViewData["Title"] = "Đăng nhập";
+    Layout = "_Layout";
+}
+
+<div class="container">
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow-lg border-0 rounded-lg">
+                <div class="card-header bg-primary text-white text-center">
+                    <h3 class="my-2"><i class="bi bi-shield-lock me-2"></i>Đăng nhập</h3>
+                </div>
+                <div class="card-body">
+                    <form asp-action="Login" asp-controller="Account" method="post">
+                        <input type="hidden" name="returnUrl" value="@ViewData["ReturnUrl"]" />
+                        
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                        
+                        <div class="form-floating mb-3">
+                            <input asp-for="Username" class="form-control" placeholder="Tên đăng nhập" autocomplete="username" />
+                            <label asp-for="Username"><i class="bi bi-person me-1"></i>Tên đăng nhập</label>
+                            <span asp-validation-for="Username" class="text-danger"></span>
+                        </div>
+                        
+                        <div class="form-floating mb-3">
+                            <input asp-for="Password" class="form-control" type="password" placeholder="Mật khẩu" autocomplete="current-password" />
+                            <label asp-for="Password"><i class="bi bi-key me-1"></i>Mật khẩu</label>
+                            <span asp-validation-for="Password" class="text-danger"></span>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            <input asp-for="RememberMe" class="form-check-input" type="checkbox" />
+                            <label asp-for="RememberMe" class="form-check-label">Ghi nhớ đăng nhập</label>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-box-arrow-in-right me-2"></i>Đăng nhập
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                @* <div class="card-footer text-center py-3 bg-light">
+                    <div class="small">
+                        <p class="mb-0">Tài khoản mặc định: <strong>admin / admin123</strong></p>
+                    </div>
+                </div> *@
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            // Tự động focus vào trường tên đăng nhập
+            $('#Username').focus();
+            
+            // Hiệu ứng cho form đăng nhập
+            $('.card').hide().fadeIn(500);
+        });
+    </script>
+}

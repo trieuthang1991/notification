@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotificationAPI", "NotificationAPI.csproj", "{B56D26E8-DF27-7F4D-E17E-AB460D0DDF5F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B56D26E8-DF27-7F4D-E17E-AB460D0DDF5F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B56D26E8-DF27-7F4D-E17E-AB460D0DDF5F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B56D26E8-DF27-7F4D-E17E-AB460D0DDF5F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B56D26E8-DF27-7F4D-E17E-AB460D0DDF5F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {252E8B93-2994-47C3-AB3E-559F72A3732B}
+	EndGlobalSection
+EndGlobal

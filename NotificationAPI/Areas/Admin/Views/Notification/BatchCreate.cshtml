@@ -1,0 +1,820 @@
+@model BatchNotificationViewModel
+@{
+	ViewData["Title"] = "Tạo nhiều thông báo";
+}
+@section Styles {
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.9.1/summernote-bs5.min.css"
+		integrity="sha512-rDHV59PgRefDUbMm2lSjvf0ZhXZy3wgROFyao0JxZPGho3oOuWejq/ELx0FOZJpgaE5QovVtRN65Y3rrb7JhdQ=="
+		crossorigin="anonymous" referrerpolicy="no-referrer" />
+}
+
+
+<div class="container-fluid">
+	<div class="card shadow-sm mb-4">
+		<div class="card-header bg-primary text-white d-flex align-items-center">
+			<i class="bi bi-plus-circle-fill me-2"></i>
+			<h5 class="mb-0">Tạo nhiều thông báo</h5>
+		</div>
+		<div class="card-body">
+
+
+
+			<ul class="nav nav-tabs" id="batchTabs" role="tablist">
+				<li class="nav-item" role="presentation">
+					<button class="nav-link active" id="multi-user-tab" data-bs-toggle="tab"
+						data-bs-target="#multi-user" type="button" role="tab" aria-controls="multi-user"
+						aria-selected="true">
+						<i class="bi bi-people me-1"></i> Nhiều người dùng
+					</button>
+				</li>
+
+			</ul>
+
+			<div class="tab-content mt-4" id="batchTabsContent">
+				<!-- Tab nhiều người dùng -->
+				<div class="tab-pane fade show active" id="multi-user" role="tabpanel" aria-labelledby="multi-user-tab">
+					<form asp-area="Admin" asp-controller="Notification" asp-action="CreateMultiUser" method="post">
+
+						<div class="alert alert-info">
+							<i class="bi bi-info-circle-fill me-2"></i> Tạo nhiều thông báo với cùng nội dung cho nhiều
+							người dùng khác nhau.
+						</div>
+
+
+						<div class="card mb-3">
+							<div class="card-header bg-light">
+								<i class="bi bi-search me-2"></i> Id Chiến dịch <span class="text-danger">*</span>
+							</div>
+							<div class="card-body">
+								<div class="row g-2 align-items-center">
+									<div class="col-md-8">
+										<input type="text" asp-for="IdChienDich" class="form-control"
+											placeholder="Nhập ID chiến dịch sau dùng để tracking trên Google analytics. Ví dụ: tanggoixemcv"
+											required>
+									</div>
+									<small class="form-text text-muted">Hệ thống sẽ tự sinh ghép Id Chiến dịch với Id
+										User thành Key. Ví dụ: tanggoixemcv</small>
+								</div>
+							</div>
+						</div>
+
+						<div class="form-group mb-3">
+							<label asp-for="UserIds" class="form-label">
+								<i class="bi bi-person-lines-fill me-1"></i> Danh sách ID người dùng
+							</label>
+							<textarea name="UserIds" class="form-control" rows="5"
+								placeholder="Nhập danh sách ID người dùng, mỗi ID trên một dòng hoặc phân cách bằng dấu phẩy"></textarea>
+							<small class="form-text text-muted">
+								Nhập danh sách ID người dùng, mỗi ID trên một dòng hoặc
+								phân cách bằng dấu phẩy.
+							</small>
+						</div>
+
+						<div class="card mb-4">
+							<div class="card-header bg-light">
+								<i class="bi bi-bell-fill me-2"></i> Thông tin thông báo
+							</div>
+							<div class="card-body">
+								<div class="row g-4">
+									<div class="col-md-6">
+										<fieldset class="border p-3 rounded">
+											<legend class="fw-bold fs-6">Thông tin cơ bản</legend>
+											<div class="form-group mb-3">
+												<label asp-for="BaseNotification.Title" class="form-label">
+													<i class="bi bi-fonts me-1"></i> Tiêu đề
+												</label>
+												<input asp-for="BaseNotification.Title" class="form-control"
+													placeholder="Nhập tiêu đề thông báo" required />
+												<span asp-validation-for="BaseNotification.Title"
+													class="text-danger"></span>
+											</div>
+
+											<div class="form-group mb-3">
+												<label asp-for="BaseNotification.Domains" class="form-label">
+													<i class="bi bi-globe me-1"></i> Tên miền
+												</label>
+												<select asp-for="BaseNotification.Domains"
+													class="form-select select2-tags"
+													data-placeholder="Cấu hình tên miền áp dụng" multiple>
+													@foreach (var item in
+																										NotificationAPI.Utils.Common.ShowListDomain(Model.BaseNotification?.Domains))
+													{
+														<option value="@item.Key">@item.Value</option>
+													}
+												</select>
+												<span asp-validation-for="BaseNotification.Domains"
+													class="text-danger"></span>
+												<small class="form-text text-muted">
+													Chọn hoặc nhập tên miền áp
+													dụng.
+												</small>
+											</div>
+
+											<div class="form-group mb-3">
+												<label asp-for="BaseNotification.Attributes" class="form-label">
+													<i class="bi bi-x-circle me-1"></i> Thuộc tính
+												</label>
+												<select asp-for="BaseNotification.Attributes"
+													class="form-select select2"
+													data-placeholder="Cấu hình các thuộc tính" multiple>
+													@foreach (var item in NotificationAPI.Utils.Common.Attributes)
+													{
+														<option value="@item.Key">@item.Value</option>
+													}
+												</select>
+												<span asp-validation-for="BaseNotification.Attributes"
+													class="text-danger"></span>
+												<small class="form-text text-muted">Cấu hình thuộc tính</small>
+											</div>
+											<div class="form-group mb-3">
+												<label asp-for="BaseNotification.DeviceTypes" class="form-label">
+													<i class="bi bi-phone me-1"></i> Loại thiết bị
+												</label>
+												<select asp-for="BaseNotification.DeviceTypes"
+													class="form-select select2" multiple>
+													@foreach (var item in EnumsHelper.EnumToDictionary<DeviceType>())
+													{
+														<option value="@item.Key">@item.Value</option>
+													}
+												</select>
+												<span asp-validation-for="BaseNotification.DeviceTypes"
+													class="text-danger"></span>
+												<small class="form-text text-muted">Chọn loại thiết bị áp dụng.</small>
+											</div>
+											<div class="form-group mb-3">
+												<label asp-for="BaseNotification.TriggerActions" class="form-label">
+													<i class="bi bi-bell me-1"></i> Hành động kích hoạt
+												</label>
+												<select asp-for="BaseNotification.TriggerActions" data-placeholder="Chọn hoặc nhập hành động kích hoạt" class="form-select select2-tags" multiple>
+													@foreach (var item in NotificationAPI.Utils.Common.ShowListTriggerAction(Model.BaseNotification.TriggerActions))
+													{
+														<option value="@item.Key">@item.Value</option>
+													}
+												</select>
+												<span asp-validation-for="BaseNotification.TriggerActions" class="text-danger"></span>
+												<small class="form-text text-muted">Chọn các hành động kích hoạt thông báo.</small>
+											</div>
+										</fieldset>
+									</div>
+
+									<div class="col-md-6">
+										<fieldset class="border p-3 rounded">
+											<legend class="fw-bold fs-6">Cấu hình hiển thị</legend>
+											<div class="form-group mb-3">
+												<label asp-for="BaseNotification.ShowTypes" class="form-label">
+													<i class="bi bi-eye me-1"></i> Loại hiển thị
+												</label>
+												<select asp-for="BaseNotification.ShowTypes" class="form-select select2"
+													data-placeholder="Cấu hình loại hiển thị thông báo"
+													data-maximum-selection-length="1" required>
+													@foreach (var item in Model.ShowTypeOptions)
+													{
+														<option value="@item.Value">@item.Text</option>
+													}
+												</select>
+												<span asp-validation-for="BaseNotification.ShowTypes"
+													class="text-danger"></span>
+											</div>
+
+											<div class="form-group mb-3">
+												<label asp-for="BaseNotification.Status" class="form-label">
+													<i class="bi bi-toggle-on me-1"></i> Trạng thái
+												</label>
+												<select asp-for="BaseNotification.Status" class="form-select" required>
+													@foreach (var item in Model.StatusOptions)
+													{
+														<option value="@item.Value">@item.Text</option>
+													}
+												</select>
+												<span asp-validation-for="BaseNotification.Status"
+													class="text-danger"></span>
+											</div>
+
+											<div class="form-group mb-3">
+												<label asp-for="BaseNotification.StartDate" class="form-label">
+													<i class="bi bi-calendar-event me-1"></i> Ngày bắt đầu
+												</label>
+												<input type="text" asp-for="BaseNotification.StartDate" data-unix="true"
+													class="form-control datepicker"
+													value="@(Model.BaseNotification?.StartDate != null ? XMUtility.XUtility.UnixTime(Model.BaseNotification.StartDate).ToString("dd-MM-yyyy HH:mm") : "")"
+													placeholder="Chọn ngày bắt đầu" required />
+												<span asp-validation-for="BaseNotification.StartDate"
+													class="text-danger"></span>
+											</div>
+
+											<div class="form-group mb-3">
+												<label asp-for="BaseNotification.EndDate" class="form-label">
+													<i class="bi bi-calendar-check me-1"></i> Ngày kết thúc
+												</label>
+												<input type="text" asp-for="BaseNotification.EndDate" data-unix="true"
+													class="form-control datepicker"
+													value="@(Model.BaseNotification?.EndDate != null ? XMUtility.XUtility.UnixTime(Model.BaseNotification.EndDate).ToString("dd-MM-yyyy HH:mm") : "")"
+													placeholder="Chọn ngày kết thúc" required />
+												<span asp-validation-for="BaseNotification.EndDate"
+													class="text-danger"></span>
+											</div>
+
+											<div class="form-group mb-3">
+												<label asp-for="BaseNotification.MaxShow" class="form-label">
+													<i class="bi bi-eye-slash me-1"></i> Số lần hiển thị tối đa
+												</label>
+												<input asp-for="BaseNotification.MaxShow" class="form-control"
+													type="number" min="1" placeholder="Nhập số lần hiển thị tối đa" />
+												<span asp-validation-for="BaseNotification.MaxShow"
+													class="text-danger"></span>
+											</div>
+
+											<div class="form-group mb-3">
+												<label asp-for="BaseNotification.Frequency" class="form-label">
+													<i class="bi bi-clock me-1"></i> Tần suất hiển thị (giờ)
+												</label>
+												<input asp-for="BaseNotification.Frequency" class="form-control"
+													type="number" min="0" placeholder="Nhập tần suất (giờ)" />
+												<span asp-validation-for="BaseNotification.Frequency"
+													class="text-danger"></span>
+												<small class="form-text text-muted">
+													0 = hiển thị mỗi lần truy
+													cập
+												</small>
+											</div>
+
+											<div class="form-group mb-3">
+												<label asp-for="BaseNotification.ListTime" class="form-label">
+													<i class="bi bi-list-ol me-1"></i> Tần suất theo Workflow
+												</label>
+												<input id="batchListTimeInput" class="form-control" type="text"
+													placeholder="Ví dụ: 5,10,15" />
+												<div id="batchListTimeContainer">
+													@if (Model.BaseNotification.ListTime != null &&
+																										Model.BaseNotification.ListTime.Count > 0)
+													{
+														@for (int i = 0; i < Model.BaseNotification.ListTime.Count; i++)
+														{
+															<input type="hidden" name="BaseNotification.ListTime[@i]"
+																value="@Model.BaseNotification.ListTime[i]" />
+														}
+													}
+												</div>
+												<small class="form-text text-muted">Định dạng: các số phút cách nhau bởi
+													dấu phẩy. Ví dụ: 5,10,15 - Lần đầu hiển thị hiển thị luôn,lần 2 sau
+													5 phút, lần 3 sau 10 phút, lần 4 sau 15 phút.</small>
+												<div id="batchListTimePreview" class="mt-2 small"></div>
+											</div>
+
+											<div class="form-group mb-3">
+												<label asp-for="BaseNotification.Order" class="form-label">
+													<i class="bi bi-sort-numeric me-1"></i> Thứ tự ưu tiên
+												</label>
+												<input asp-for="BaseNotification.Order" class="form-control"
+													type="number" min="0" placeholder="Nhập thứ tự ưu tiên" />
+												<span asp-validation-for="BaseNotification.Order"
+													class="text-danger"></span>
+												<small class="form-text text-muted">Số nhỏ hơn = ưu tiên cao hơn</small>
+											</div>
+
+
+										</fieldset>
+									</div>
+								</div>
+
+								<!-- Nội dung và Cấu hình liên kết -->
+								<div class="card mt-4">
+									<div class="card-header bg-primary text-white">
+										<i class="bi bi-textarea-t me-2"></i> Nội dung và Cấu hình liên kết
+									</div>
+									<div class="card-body">
+										<!-- Cấu hình liên kết -->
+										<div class="row">
+											<div class="col-md-12">
+												<div class="form-group mb-3">
+													@await Component.InvokeAsync("ConfigLinkEditor", new
+													{
+														configLinks =
+														Model.BaseNotification.PageShows,
+																										fieldName =
+																										"BaseNotification.PageShows",
+																										title = "Trang hiển thị",
+																										isRequired =
+																										false
+																										})
+													<small class="form-text text-muted">
+														Cấu hình các trang sẽ hiển thị
+														thông báo. Sử dụng "all" cho tất cả các trang.
+													</small>
+												</div>
+											</div>
+											<div class="col-md-12">
+												<div class="form-group mb-3">
+													@await Component.InvokeAsync("ConfigLinkEditor", new
+																										{
+														configLinks =
+														Model.BaseNotification.PageExcludes,
+																										fieldName =
+																										"BaseNotification.PageExcludes",
+																										title = "Trang loại trừ",
+																										isRequired = false
+																										})
+													<small class="form-text text-muted">
+														Cấu hình các trang sẽ không hiển
+														thị thông báo.
+													</small>
+												</div>
+											</div>
+										</div>
+										<!-- Nội dung -->
+										<div class="form-group mb-4">
+											<label asp-for="BaseNotification.Content" class="form-label">
+												<i class="bi bi-textarea-t me-1"></i> Nội dung <span
+													class="text-danger">*</span>
+											</label>
+											<textarea asp-for="BaseNotification.Content" id="editor"
+												class="form-control" rows="8"
+												placeholder="Nhập nội dung thông báo hoặc URL" required></textarea>
+											<span asp-validation-for="BaseNotification.Content"
+												class="text-danger"></span>
+											<div class="alert alert-info mt-2">
+												<div>Hướng dẫn sử dụng Link Tracking để không hiển thị lại thông báo sau
+													khi click</div>
+												<ol>
+													<li>
+														<strong>Thêm thuộc tính "Không làm phiền người
+															dùng"</strong><br />
+														Tùy chọn này giúp hệ thống ghi nhận rằng người dùng đã tương tác
+														với thông báo và không hiển thị lại lần sau.
+													</li>
+													<li>
+														<strong>Thêm class <code>notification-track-click</code> vào các
+															phần tử có thể click</strong><br />
+														Ví dụ như các liên kết hoặc nút bấm trong nội dung thông báo.
+														<ul>
+															<li>
+																<strong>Cách 1:</strong> Mở chế độ code và thêm thủ công
+																class
+																<code>notification-track-click</code> vào phần tử HTML.
+															</li>
+															<li>
+																<strong>Cách 2:</strong> Click chọn phần tử (như liên
+																kết), sau đó chọn
+																<strong>Edit Class</strong> trên thanh công cụ và thêm
+																<code>notification-track-click</code> vào ô class.
+															</li>
+														</ul>
+													</li>
+												</ol>
+											</div>
+										</div>
+
+
+									</div>
+								</div>
+
+								<!-- Thông tin bổ sung -->
+								<div class="card mt-4">
+									<div class="card-header bg-light">
+										<i class="bi bi-info-circle me-2"></i> Thông tin bổ sung
+									</div>
+									<div class="card-body">
+										<div class="row g-3">
+											<div class="col-md-4">
+												<div class="form-check mb-2">
+													<input class="form-check-input" type="checkbox"
+														asp-for="BaseNotification.InfoMore.PopupDismissable" />
+													<label class="form-check-label"
+														asp-for="BaseNotification.InfoMore.PopupDismissable">
+														Cho phép đóng popup (Chỉ hiển thị loại popup)
+													</label>
+												</div>
+												<div class="form-check">
+													<input class="form-check-input" type="checkbox"
+														asp-for="BaseNotification.InfoMore.IsDirectLink" />
+													<label class="form-check-label"
+														asp-for="BaseNotification.InfoMore.IsDirectLink">
+														Là liên kết trực tiếp
+													</label>
+												</div>
+											</div>
+											<div class="col-md-4">
+												<div class="form-group mb-3">
+													<label asp-for="BaseNotification.InfoMore.HtmlDisplayLocation"
+														class="form-label">
+														<i class="bi bi-code-slash me-1"></i> Vị trí hiển thị HTML
+													</label>
+													<input asp-for="BaseNotification.InfoMore.HtmlDisplayLocation"
+														class="form-control" placeholder="div#notification-container" />
+													<span
+														asp-validation-for="BaseNotification.InfoMore.HtmlDisplayLocation"
+														class="text-danger"></span>
+												</div>
+											</div>
+											<div class="col-md-4">
+												<div class="form-group mb-3">
+													<label asp-for="BaseNotification.InfoMore.Delay" class="form-label">
+														<i class="bi bi-clock-history me-1"></i> Trễ hiển thị (giây)
+													</label>
+													<input asp-for="BaseNotification.InfoMore.Delay"
+														class="form-control" type="number" min="0"
+														placeholder="Nhập thời gian trễ hiển thị" />
+													<small class="form-text text-muted">Thông báo sẽ hiển thị sau bao
+														nhiêu giây</small>
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="d-flex justify-content-between mt-4">
+							<a asp-area="Admin" asp-controller="Notification" asp-action="Index"
+								class="btn btn-outline-secondary">
+								<i class="bi bi-arrow-left me-1"></i> Quay lại
+							</a>
+							<button type="submit" class="btn btn-primary">
+								<i class="bi bi-save me-1"></i> Tạo thông báo
+							</button>
+						</div>
+					</form>
+				</div>
+
+				<!-- Tab upload Excel -->
+				<div class="tab-pane fade" id="excel" role="tabpanel" aria-labelledby="excel-tab">
+					<form asp-area="Admin" asp-controller="Notification" asp-action="UploadExcel" method="post"
+						enctype="multipart/form-data">
+						<div class="alert alert-info">
+							<i class="bi bi-info-circle-fill me-2"></i> Tải lên file Excel chứa danh sách thông báo cần
+							tạo.
+						</div>
+
+						<div class="form-group mb-3">
+							<label asp-for="ExcelFile" class="form-label">
+								<i class="bi bi-file-earmark-excel me-1"></i> File Excel
+							</label>
+							<input type="file" asp-for="ExcelFile" class="form-control" accept=".xlsx,.xls" />
+							<span asp-validation-for="ExcelFile" class="text-danger"></span>
+							<small class="form-text text-muted">
+								Chọn file Excel (.xlsx, .xls) chứa danh sách thông
+								báo.
+							</small>
+						</div>
+
+						<div class="alert alert-warning">
+							<i class="bi bi-exclamation-triangle-fill me-2"></i> Lưu ý: File Excel phải có cấu trúc đúng
+							định dạng.
+							<a href="#" class="alert-link" data-bs-toggle="modal" data-bs-target="#excelTemplateModal">
+								Xem
+								mẫu
+							</a>
+						</div>
+
+						<div class="d-flex justify-content-between mt-4">
+							<a asp-area="Admin" asp-controller="Notification" asp-action="Index"
+								class="btn btn-outline-secondary">
+								<i class="bi bi-arrow-left me-1"></i> Quay lại
+							</a>
+							<div>
+								<a asp-area="Admin" asp-controller="Notification" asp-action="DownloadExcelTemplate"
+									class="btn btn-outline-primary me-2">
+									<i class="bi bi-download me-1"></i> Tải mẫu Excel
+								</a>
+								<button type="submit" class="btn btn-primary">
+									<i class="bi bi-upload me-1"></i> Tải lên
+								</button>
+							</div>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Modal hiển thị mẫu Excel -->
+<div class="modal fade" id="excelTemplateModal" tabindex="-1" aria-labelledby="excelTemplateModalLabel"
+	aria-hidden="true">
+	<div class="modal-dialog modal-lg">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="excelTemplateModalLabel">Mẫu file Excel</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+			</div>
+			<div class="modal-body">
+				<p>File Excel cần có các cột sau:</p>
+				<table class="table table-bordered">
+					<thead>
+						<tr>
+							<th>Tên cột</th>
+							<th>Mô tả</th>
+							<th>Ví dụ</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td>Title</td>
+							<td>Tiêu đề thông báo</td>
+							<td>Khuyến mãi đặc biệt</td>
+						</tr>
+						<tr>
+							<td>Content</td>
+							<td>Nội dung thông báo</td>
+							<td>Giảm giá 20% cho tất cả sản phẩm</td>
+						</tr>
+						<tr>
+							<td>Domains</td>
+							<td>Tên miền (phân cách bằng dấu phẩy)</td>
+							<td>example.com,mydomain.com</td>
+						</tr>
+						<tr>
+							<td>UserId</td>
+							<td>ID người dùng</td>
+							<td>user123 hoặc all</td>
+						</tr>
+						<tr>
+							<td>ShowTypes</td>
+							<td>Loại hiển thị (1: Popup, 2: HTML, 3: Link)</td>
+							<td>1</td>
+						</tr>
+						<tr>
+							<td>Status</td>
+							<td>Trạng thái (1: Active, 0: Inactive)</td>
+							<td>1</td>
+						</tr>
+						<tr>
+							<td>PageShows</td>
+							<td>Trang hiển thị (phân cách bằng dấu phẩy)</td>
+							<td>/home,/product</td>
+						</tr>
+						<tr>
+							<td>PageExcludes</td>
+							<td>Trang loại trừ (phân cách bằng dấu phẩy)</td>
+							<td>/login,/register</td>
+						</tr>
+						<tr>
+							<td>StartDate</td>
+							<td>Ngày bắt đầu (dd/MM/yyyy HH:mm)</td>
+							<td>01/05/2023 08:00</td>
+						</tr>
+						<tr>
+							<td>EndDate</td>
+							<td>Ngày kết thúc (dd/MM/yyyy HH:mm)</td>
+							<td>31/05/2023 23:59</td>
+						</tr>
+						<tr>
+							<td>MaxShow</td>
+							<td>Số lần hiển thị tối đa</td>
+							<td>5</td>
+						</tr>
+						<tr>
+							<td>Frequency</td>
+							<td>Tần suất hiển thị (giờ)</td>
+							<td>24</td>
+						</tr>
+						<tr>
+							<td>Order</td>
+							<td>Thứ tự ưu tiên</td>
+							<td>1</td>
+						</tr>
+						<tr>
+							<td>DeviceTypes</td>
+							<td>Loại thiết bị (phân cách bằng dấu phẩy, ví dụ: Desktop,Mobile)</td>
+							<td>Desktop,Mobile</td>
+						</tr>
+						<tr>
+							<td>PopupDismissable</td>
+							<td>Cho phép đóng popup (true/false)</td>
+							<td>true</td>
+						</tr>
+						<tr>
+							<td>IsDirectLink</td>
+							<td>Là liên kết trực tiếp (true/false)</td>
+							<td>false</td>
+						</tr>
+						<tr>
+							<td>HtmlDisplayLocation</td>
+							<td>Vị trí hiển thị HTML</td>
+							<td>div#notification-container</td>
+						</tr>
+						<tr>
+							<td>Delay</td>
+							<td>Thời gian trễ hiển thị (giây)</td>
+							<td>3</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+				<a asp-area="Admin" asp-controller="Notification" asp-action="DownloadExcelTemplate"
+					class="btn btn-primary">
+					<i class="bi bi-download me-1"></i> Tải mẫu Excel
+				</a>
+			</div>
+		</div>
+	</div>
+</div>
+
+@section Scripts {
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.9.1/summernote-bs5.min.js"
+		integrity="sha512-qTQLA91yGDLA06GBOdbT7nsrQY8tN6pJqjT16iTuk08RWbfYmUz/pQD3Gly1syoINyCFNsJh7A91LtrLIwODnw=="
+		crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+	<script>
+		$(document).ready(function () {
+
+			$('#editor').summernote({
+				height: 300,
+				codeviewFilter: false,
+				codeviewIframeFilter: false,
+				toolbar: [
+					['style', ['bold', 'italic', 'underline', 'clear']],
+					['font', ['strikethrough', 'superscript', 'subscript']],
+					['fontsize', ['fontsize']],
+					['color', ['color']],
+					['para', ['paragraph']],
+					['height', ['height']],
+					['table', ['table']],
+					['insert', ['link', 'picture', 'video']],
+					['custom', ['editClass']],
+					['view', ['codeview', 'help']]
+				],
+				buttons: {
+					editClass: function (context) {
+						var ui = $.summernote.ui;
+						var button = ui.button({
+							contents: '<i class="bi bi-code-slash"/> Edit Class',
+							tooltip: 'Edit element classes',
+							click: function () {
+								var range = context.invoke('editor.getLastRange');
+								var selectedNode = range ? range.sc : null;
+								if (!selectedNode) {
+									alert('Please select an element');
+									return;
+								}
+								var element = $(selectedNode).closest('a, button').get(0);
+								if (!element) {
+									alert('Please select a link or button first');
+									return;
+								}
+								var currentClasses = element.className || '';
+								 $('#add-class.modal').remove(); // Remove existing modals
+								var dialog = $(`
+											<div class="modal fade" tabindex="-1" id='add-class'>
+												<div class="modal-dialog">
+													<div class="modal-content">
+														<div class="modal-header">
+															<h5 class="modal-title">Edit Element Classes</h5>
+															<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+														</div>
+														<div class="modal-body">
+															<div class="mb-3">
+																<label class="form-label">Common Classes:</label>
+																<div class="btn-group mb-2" role="group">
+																	<button type="button" class="btn btn-sm btn-outline-primary class-option" data-class="btn btn-primary">Primary Button</button>
+																	<button type="button" class="btn btn-sm btn-outline-secondary class-option" data-class="btn btn-secondary">Secondary Button</button>
+																	<button type="button" class="btn btn-sm btn-outline-success class-option" data-class="notification-track-click">Track Click</button>
+																</div>
+															</div>
+															<div class="mb-3">
+																<label class="form-label">Classes:</label>
+																<input type="text" class="form-control" id="classInput" value="${currentClasses}">
+																<small class="form-text text-muted">Separate multiple classes with spaces</small>
+															</div>
+														</div>
+														<div class="modal-footer">
+															<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+															<button type="button" class="btn btn-primary" id="saveClasses">Save Changes</button>
+														</div>
+													</div>
+												</div>
+											</div>
+										`);
+								dialog.find('.class-option').on('click', function () {
+									var classToAdd = $(this).data('class');
+									var currentVal = dialog.find('#classInput').val();
+									var classes = new Set(currentVal.split(' ').filter(c => c));
+									var classesToAdd = classToAdd.split(' ');
+									classesToAdd.forEach(cls => {
+										if (classes.has(cls)) {
+											classes.delete(cls);
+										} else {
+											classes.add(cls);
+										}
+									});
+									dialog.find('#classInput').val(Array.from(classes).join(' '));
+								});
+								dialog.find('#saveClasses').on('click', function () {
+									var newClasses = dialog.find('#classInput').val();
+									$(element).attr('class', newClasses);
+									context.invoke('editor.saveRange');
+									$('#editor').summernote('code', $('#editor').summernote('code'));
+									dialog.modal('hide');
+								});
+								$('body').append(dialog);
+								dialog.modal('show');
+								dialog.on('hidden.bs.modal', function () {
+									dialog.remove();
+								});
+							}
+						});
+						return button.render();
+					}
+				},
+				callbacks: {
+					onPaste: function (e) {
+						e.preventDefault();
+						const text = (e.originalEvent || e).clipboardData.getData('text/plain');
+						document.execCommand('insertText', false, text);
+					}
+				}
+			});
+
+			// Hiệu ứng khi nhập liệu
+			$('.form-control, .form-select').on('focus', function () {
+				$(this).parent().find('i').css('color', '#3b82f6');
+			}).on('blur', function () {
+				$(this).parent().find('i').css('color', '#6b7280');
+			});
+
+			// Xử lý trường ListTime cho batch create
+			function updateBatchListTimePreview() {
+				var inputValue = $('#batchListTimeInput').val();
+
+				// Xóa các input hidden hiện tại
+				$('#batchListTimeContainer').empty();
+
+				if (!inputValue) {
+					$('#batchListTimePreview').html('');
+					return;
+				}
+
+				var times = inputValue.split(',').map(function (item) {
+					return parseInt(item.trim());
+				}).filter(function (item) {
+					return !isNaN(item) && item > 0;
+				});
+
+				if (times.length === 0) {
+					$('#batchListTimePreview').html('<span class="text-danger">Không có giá trị hợp lệ</span>');
+					return;
+				}
+
+				// Hiển thị preview
+				var html = '<span class="text-success">Thời gian hiển thị: </span>';
+				html += '<span class="badge bg-info me-1">Lần 1: Hiển thị luôn</span>';
+
+				times.forEach(function (time, index) {
+					index++;
+					html += '<span class="badge bg-info me-1">Lần ' + (index + 1) + ': ' + time + ' phút</span>';
+				});
+
+				// Nếu có nhiều hơn 3 lần hiển thị
+				html += '<span class="ms-2">Các lần tiếp theo: ' + times[times.length - 1] + ' phút</span>';
+
+				$('#batchListTimePreview').html(html);
+
+				// Cập nhật các input hidden
+				times.forEach(function (time, index) {
+					$('#batchListTimeContainer').append('<input type="hidden" name="BaseNotification.ListTime[' + index + ']" value="' + time + '" />');
+				});
+			}
+
+			$('#batchListTimeInput').on('input', updateBatchListTimePreview);
+
+			// Khởi tạo giá trị ban đầu cho ListTime nếu có
+			var batchListTimeValues = [];
+			$('#batchListTimeContainer input[type="hidden"]').each(function () {
+				batchListTimeValues.push($(this).val());
+			});
+
+			if (batchListTimeValues.length > 0) {
+				$('#batchListTimeInput').val(batchListTimeValues.join(','));
+				updateBatchListTimePreview();
+			}
+
+			// Validation trực quan
+			$('form').on('submit', function (e) {
+				$(this).find('.form-control:invalid, .form-select:invalid').each(function () {
+					$(this).addClass('border-danger');
+					$(this).next('.text-danger').show();
+				});
+
+				$('.datepicker[data-unix="true"]').each(function () {
+					var $input = $(this);
+					var dateStr = $input.val();
+
+					if (dateStr) {
+						// Sử dụng moment.js để chuyển đổi
+						var date = moment(dateStr, "DD-MM-YYYY HH:mm");
+						var timestamp = date.unix();
+						$input.val(timestamp);
+					}
+				});
+			});
+
+			$('.form-control, .form-select').on('input change', function () {
+				if ($(this).is(':valid')) {
+					$(this).removeClass('border-danger');
+					$(this).next('.text-danger').hide();
+				}
+			});
+		});
+	</script>
+}

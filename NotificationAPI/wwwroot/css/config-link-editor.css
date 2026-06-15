@@ -1,0 +1,46 @@
+.config-link-editor .card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.config-link-editor .table {
+    margin-bottom: 0;
+}
+
+.config-link-editor .table th {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.config-link-editor .config-link-row:hover {
+    background-color: #f8f9fa;
+}
+
+.config-link-editor .form-select-sm,
+.config-link-editor .form-control-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.config-link-editor .btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.config-link-editor .alert {
+    margin-bottom: 0;
+}
+
+/* Animation */
+.config-link-editor .config-link-row {
+    transition: all 0.3s ease;
+}
+
+.config-link-editor .config-link-row.new-row {
+    animation: highlight 1s ease;
+}
+
+@keyframes highlight {
+    0% { background-color: #d1ecf1; }
+    100% { background-color: transparent; }
+}

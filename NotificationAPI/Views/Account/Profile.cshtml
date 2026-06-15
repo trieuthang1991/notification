@@ -1,0 +1,96 @@
+@{
+    ViewData["Title"] = "Thông tin tài khoản";
+}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0"><i class="bi bi-person-circle me-2"></i>Thông tin tài khoản</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center mb-4 mb-md-0">
+                            <div class="avatar-container mb-3">
+                                <i class="bi bi-person-circle" style="font-size: 8rem; color: #6c757d;"></i>
+                            </div>
+                            <h4>@User.Identity?.Name</h4>
+                            <span class="badge bg-primary">@User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value</span>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="list-group">
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1">Tên đầy đủ</h5>
+                                    </div>
+                                    <p class="mb-1">@User.Claims.FirstOrDefault(c => c.Type == "FullName")?.Value</p>
+                                </div>
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1">Email</h5>
+                                    </div>
+                                    <p class="mb-1">@User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Email)?.Value</p>
+                                </div>
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1">ID người dùng</h5>
+                                    </div>
+                                    <p class="mb-1">@User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between">
+                        <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left me-1"></i>Quay lại
+                        </a>
+                        <form asp-controller="Account" asp-action="Logout" method="post">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-box-arrow-right me-1"></i>Đăng xuất
+                            </button>
+                        </form>
+                        <a href="javascript:void(0)" onclick="logoutDirectly()" class="btn btn-outline-danger ms-2">
+                            <i class="bi bi-box-arrow-right me-1"></i>Đăng xuất trực tiếp
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function logoutDirectly() {
+            // Lấy token chống giả mạo từ form đăng xuất
+            var token = document.querySelector('form[action*="Logout"] input[name="__RequestVerificationToken"]').value;
+
+            // Tạo request
+            fetch('/Account/Logout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'RequestVerificationToken': token
+                },
+                body: '__RequestVerificationToken=' + encodeURIComponent(token)
+            })
+            .then(function(response) {
+                if (response.ok) {
+                    // Chuyển hướng đến trang đăng nhập
+                    window.location.href = '/Account/Login';
+                } else {
+                    console.error('Lỗi khi đăng xuất:', response.status);
+                    alert('Đã xảy ra lỗi khi đăng xuất. Vui lòng thử lại.');
+                }
+            })
+            .catch(function(error) {
+                console.error('Lỗi khi đăng xuất:', error);
+                alert('Đã xảy ra lỗi khi đăng xuất. Vui lòng thử lại.');
+            });
+        }
+    </script>
+}

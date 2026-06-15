@@ -1,0 +1,73 @@
+@model NotificationConfig
+@{
+	ViewData["Title"] = "Xóa thông báo";
+}
+
+<div class="card">
+	<div class="card-header bg-danger text-white">
+		<i class="bi bi-exclamation-triangle me-1"></i>
+		Xác nhận xóa thông báo
+	</div>
+	<div class="card-body">
+		<div class="alert alert-warning">
+			<i class="bi bi-exclamation-triangle"></i>
+			Bạn có chắc chắn muốn xóa thông báo này? Hành động này không thể hoàn tác.
+		</div>
+
+		<div class="row mb-4">
+			<div class="col-md-6">
+				<div class="mb-3">
+					<strong>ID:</strong>
+					<span>@Model.Id</span>
+				</div>
+				<div class="mb-3">
+					<strong>Tiêu đề:</strong>
+					<span>@Model.Title</span>
+				</div>
+				<div class="mb-3">
+					<strong>Tên miền:</strong>
+					<span>@(Model.Domains != null ? string.Join(", ", Model.Domains) : "")</span>
+				</div>
+				<div class="mb-3">
+					<strong>Trạng thái:</strong>
+					<span>@Model.Status</span>
+				</div>
+			</div>
+			<div class="col-md-6">
+				<div class="mb-3">
+					<strong>Ngày bắt đầu:</strong>
+					<span>@DateTimeOffset.FromUnixTimeSeconds(Model.StartDate).DateTime.ToString("dd/MM/yyyy HH:mm")</span>
+				</div>
+				<div class="mb-3">
+					<strong>Ngày kết thúc:</strong>
+					<span>@DateTimeOffset.FromUnixTimeSeconds(Model.EndDate).DateTime.ToString("dd/MM/yyyy HH:mm")</span>
+				</div>
+				<div class="mb-3">
+					<strong>Cập nhật lần cuối:</strong>
+					<span>@DateTimeOffset.FromUnixTimeSeconds(Model.LastUpdated).DateTime.ToString("dd/MM/yyyy HH:mm")</span>
+				</div>
+			</div>
+		</div>
+
+		<div class="card mb-4">
+			<div class="card-header">
+				Nội dung thông báo
+			</div>
+			<div class="card-body">
+				@Html.Raw(Model.Content)
+			</div>
+		</div>
+
+		<form asp-area="Admin" asp-controller="Notification" asp-action="Delete" method="post">
+			<input type="hidden" name="id" value="@Model.Id" />
+			<div class="d-flex justify-content-between">
+				<a asp-area="Admin" asp-controller="Notification" asp-action="Index" class="btn btn-secondary">
+					<i class="bi bi-arrow-left"></i> Quay lại
+				</a>
+				<button type="submit" class="btn btn-danger">
+					<i class="bi bi-trash"></i> Xác nhận xóa
+				</button>
+			</div>
+		</form>
+	</div>
+</div>

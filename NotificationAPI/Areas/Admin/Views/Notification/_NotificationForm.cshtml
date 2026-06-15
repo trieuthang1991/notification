@@ -1,0 +1,315 @@
+@model NotificationViewModel
+
+<div class="container-fluid">
+	<div class="card shadow-sm">
+		<div class="card-header bg-primary text-white d-flex align-items-center">
+			<i class="bi bi-bell-fill me-2"></i>
+			<h5 class="mb-0">Thông báo</h5>
+		</div>
+		<div class="card-body">
+			<form asp-action="Save" method="post">
+				<div asp-validation-summary="ModelOnly" class="alert alert-danger d-none"></div>
+				<input type="hidden" asp-for="Notification.Id" />
+
+				<div class="row g-4">
+					<!-- Cột trái -->
+					<div class="col-md-6">
+						<fieldset class="border p-3 rounded">
+							<legend class="fw-bold fs-6">Thông tin cơ bản</legend>
+							@if (String.IsNullOrEmpty(Model.Notification.Id))
+							{
+								<div class="form-group mb-3">
+									<label asp-for="IdChienDich" class="form-label">
+										<i class="bi bi-person me-1"></i> ID Chiến dịch <span class="text-danger">*</span>
+									</label>
+									<input asp-for="IdChienDich" class="form-control" placeholder="Nhập ID chiến dịch sau dùng để tracking trên Google analytics. Ví dụ: tanggoixemcv" required />
+									<span asp-validation-for="IdChienDich" class="text-danger"></span>
+									<small class="form-text text-muted">Hệ thống sẽ tự sinh ghép Id Chiến dịch với Id User thành Key. Ví dụ: tanggoixemcv</small>
+								</div>
+							}
+
+
+							<div class="form-group mb-3">
+								<label asp-for="Notification.Title" class="form-label">
+									<i class="bi bi-fonts me-1"></i> Tiêu đề <span class="text-danger">*</span>
+								</label>
+								<input asp-for="Notification.Title" class="form-control" placeholder="Nhập tiêu đề thông báo" required />
+								<span asp-validation-for="Notification.Title" class="text-danger"></span>
+							</div>
+
+							<div class="form-group mb-3">
+								<label asp-for="Notification.Domains" class="form-label">
+									<i class="bi bi-globe me-1"></i> Tên miền <span class="text-danger">*</span>
+								</label>
+								<select asp-for="Notification.Domains" class="form-select select2-tags" data-placeholder="Cấu hình tên miền áp dụng" multiple>
+									@foreach (var item in NotificationAPI.Utils.Common.ShowListDomain(Model.Notification.Domains))
+									{
+										<option value="@item.Key">@item.Value</option>
+									}
+								</select>
+								<span asp-validation-for="Notification.Domains" class="text-danger"></span>
+								<small class="form-text text-muted">Chọn hoặc nhập tên miền áp dụng.</small>
+							</div>
+
+							<div class="form-group mb-3">
+								<label asp-for="Notification.UserId" class="form-label">
+									<i class="bi bi-person me-1"></i> ID người dùng
+								</label>
+								<input asp-for="Notification.UserId" class="form-control" placeholder="Nhập ID hoặc @NotificationAPI.Utils.Common.All" />
+								<span asp-validation-for="Notification.UserId" class="text-danger"></span>
+								<small class="form-text text-muted">Nhập "@NotificationAPI.Utils.Common.All" cho tất cả.</small>
+							</div>
+
+							<div class="form-group mb-3">
+								<label asp-for="Notification.Attributes" class="form-label">
+									<i class="bi bi-x-circle me-1"></i> Thuộc tính
+								</label>
+								<select asp-for="Notification.Attributes" class="form-select select2" data-placeholder="Cấu hình các thuộc tính" multiple>
+									@foreach (var item in NotificationAPI.Utils.Common.Attributes)
+									{
+										<option value="@item.Key">@item.Value</option>
+									}
+								</select>
+								<span asp-validation-for="Notification.Attributes" class="text-danger"></span>
+								<small class="form-text text-muted">Cấu hình thuộc tính</small>
+							</div>
+							<div class="form-group mb-3">
+								<label asp-for="Notification.DeviceTypes" class="form-label">
+									<i class="bi bi-phone me-1"></i> Loại thiết bị
+								</label>
+								<select asp-for="Notification.DeviceTypes" class="form-select select2" multiple>
+									@foreach (var item in EnumsHelper.EnumToDictionary<DeviceType>())
+									{
+										<option value="@item.Key">@item.Value</option>
+									}
+								</select>
+								<span asp-validation-for="Notification.DeviceTypes" class="text-danger"></span>
+								<small class="form-text text-muted">Chọn loại thiết bị áp dụng.</small>
+							</div>
+							<div>
+								<label asp-for="Notification.TriggerActions" class="form-label">
+									<i class="bi bi-bell me-1"></i> Hành động kích hoạt
+								</label>
+								<select asp-for="Notification.TriggerActions" data-placeholder="Chọn hoặc nhập hành động kích hoạt" class="form-select select2-tags" multiple>
+									@foreach (var item in NotificationAPI.Utils.Common.ShowListTriggerAction(Model.Notification.TriggerActions))
+									{
+										<option value="@item.Key">@item.Value</option>
+									}
+								</select>
+								<span asp-validation-for="Notification.TriggerActions" class="text-danger"></span>
+								<small class="form-text text-muted">Chọn các hành động kích hoạt thông báo.</small>
+							</div>
+						</fieldset>
+					</div>
+
+					<!-- Cột phải -->
+					<div class="col-md-6">
+						<fieldset class="border p-3 rounded">
+							<legend class="fw-bold fs-6">Cấu hình hiển thị</legend>
+							<div class="form-group mb-3">
+								<label asp-for="Notification.ShowTypes" class="form-label">
+									<i class="bi bi-eye me-1"></i> Loại hiển thị <span class="text-danger">*</span>
+								</label>
+								<select data-placeholder="Cấu hình loại hiển thị thông báo" data-maximum-selection-length="1" asp-for="Notification.ShowTypes" class="form-select select2" required>
+									@foreach (var item in Model.ShowTypeOptions)
+									{
+										<option value="@item.Value">@item.Text</option>
+									}
+								</select>
+								<span asp-validation-for="Notification.ShowTypes" class="text-danger"></span>
+							</div>
+
+							<div class="form-group mb-3">
+								<label asp-for="Notification.Status" class="form-label">
+									<i class="bi bi-toggle-on me-1"></i> Trạng thái <span class="text-danger">*</span>
+								</label>
+								<select asp-for="Notification.Status" class="form-select" required>
+									@foreach (var item in Model.StatusOptions)
+									{
+										<option value="@item.Value">@item.Text</option>
+									}
+								</select>
+								<span asp-validation-for="Notification.Status" class="text-danger"></span>
+							</div>
+
+							<div class="form-group mb-3">
+								<label asp-for="Notification.StartDate" class="form-label">
+									<i class="bi bi-calendar-event me-1"></i> Ngày bắt đầu <span class="text-danger">*</span>
+								</label>
+								<input type="text" asp-for="Notification.StartDate" data-unix="true" class="form-control datepicker"
+									   value="@XMUtility.XUtility.UnixTime(Model.Notification.StartDate).ToString("dd-MM-yyyy HH:mm")"
+									   placeholder="Chọn ngày bắt đầu" required />
+								<span asp-validation-for="Notification.StartDate" class="text-danger"></span>
+							</div>
+
+							<div class="form-group mb-3">
+								<label asp-for="Notification.EndDate" class="form-label">
+									<i class="bi bi-calendar-check me-1"></i> Ngày kết thúc <span class="text-danger">*</span>
+								</label>
+								<input type="text" asp-for="Notification.EndDate" data-unix="true" class="form-control datepicker"
+									   value="@XMUtility.XUtility.UnixTime(Model.Notification.EndDate).ToString("dd-MM-yyyy HH:mm")"
+									   placeholder="Chọn ngày kết thúc" required />
+								<span asp-validation-for="Notification.EndDate" class="text-danger"></span>
+							</div>
+
+							<div class="form-group mb-3">
+								<label asp-for="Notification.MaxShow" class="form-label">
+									<i class="bi bi-eye-slash me-1"></i> Số lần hiển thị tối đa
+								</label>
+								<input asp-for="Notification.MaxShow" class="form-control" type="number" min="1" placeholder="Nhập số lần hiển thị tối đa" />
+								<span asp-validation-for="Notification.MaxShow" class="text-danger"></span>
+							</div>
+
+							<div class="form-group mb-3">
+								<label asp-for="Notification.Frequency" class="form-label">
+									<i class="bi bi-clock me-1"></i> Tần suất hiển thị (giờ)
+								</label>
+								<input asp-for="Notification.Frequency" class="form-control" type="number" min="0" placeholder="Nhập tần suất (giờ)" />
+								<span asp-validation-for="Notification.Frequency" class="text-danger"></span>
+								<small class="form-text text-muted">0 = hiển thị mỗi lần truy cập</small>
+							</div>
+
+							<div class="form-group mb-3">
+								<label asp-for="Notification.ListTime" class="form-label">
+									<i class="bi bi-list-ol me-1"></i> Tần suất theo Workflow
+								</label>
+								<input id="listTimeInput" class="form-control" type="text" placeholder="Ví dụ: 5,10,15" />
+								<div id="listTimeContainer">
+									@if (Model.Notification.ListTime != null && Model.Notification.ListTime.Count > 0)
+									{
+										@for (int i = 0; i < Model.Notification.ListTime.Count; i++)
+										{
+											<input type="hidden" name="Notification.ListTime[@i]" value="@Model.Notification.ListTime[i]" />
+										}
+									}
+								</div>
+								<small class="form-text text-muted">Định dạng: các số phút cách nhau bởi dấu phẩy. Ví dụ: 5,10,15 - Lần đầu hiển thị hiển thị luôn,lần 2 sau 5 phút, lần 3 sau 10 phút, lần 4 sau 15 phút.</small>
+								<div id="listTimePreview" class="mt-2 small"></div>
+							</div>
+
+							<div class="form-group mb-3">
+								<label asp-for="Notification.Order" class="form-label">
+									<i class="bi bi-sort-numeric me-1"></i> Thứ tự ưu tiên
+								</label>
+								<input asp-for="Notification.Order" class="form-control" type="number" min="0" placeholder="Nhập thứ tự ưu tiên" />
+								<span asp-validation-for="Notification.Order" class="text-danger"></span>
+								<small class="form-text text-muted">Số nhỏ hơn = ưu tiên cao hơn</small>
+							</div>
+
+						</fieldset>
+					</div>
+				</div>
+				<!-- Nội dung và Cấu hình liên kết -->
+				<div class="card mt-4" style="border:none">
+
+					<!-- Cấu hình liên kết -->
+
+					<div class="col-md-12">
+						<div class="form-group mb-3">
+							@await Component.InvokeAsync("ConfigLinkEditor", new { configLinks = Model.Notification.PageShows, fieldName = "Notification.PageShows", title = "Trang hiển thị", isRequired = false })
+							<small class="form-text text-muted">Cấu hình các trang sẽ hiển thị thông báo. Sử dụng "all" cho tất cả các trang.</small>
+						</div>
+					</div>
+					<div class="col-md-12">
+						<div class="form-group mb-3">
+							@await Component.InvokeAsync("ConfigLinkEditor", new { configLinks = Model.Notification.PageExcludes, fieldName = "Notification.PageExcludes", title = "Trang loại trừ", isRequired = false })
+							<small class="form-text text-muted">Cấu hình các trang sẽ không hiển thị thông báo.</small>
+						</div>
+					</div>
+
+					<div class="col-md-12">
+						<div class="card-header bg-primary text-white">
+							<i class="bi bi-textarea-t me-2"></i> Nội dung và Cấu hình liên kết
+						</div>
+						<div class="card-body">
+							<!-- Nội dung -->
+							<div class="form-group mb-4">
+								<label asp-for="Notification.Content" class="form-label">
+									<i class="bi bi-textarea-t me-1"></i> Nội dung <span class="text-danger">*</span>
+								</label>
+								<textarea asp-for="Notification.Content" id="editor" class="form-control" rows="8" placeholder="Nhập nội dung thông báo hoặc URL" required></textarea>
+								<span asp-validation-for="Notification.Content" class="text-danger"></span>
+								<div class="alert alert-info mt-2"><div>Hướng dẫn sử dụng Link Tracking để không hiển thị lại thông báo sau khi click</div>
+									<ol>
+										<li>
+										<strong>Thêm thuộc tính "Không làm phiền người dùng"</strong><br />
+										Tùy chọn này giúp hệ thống ghi nhận rằng người dùng đã tương tác với thông báo và không hiển thị lại lần sau.
+										</li>
+										<li>
+										<strong>Thêm class <code>notification-track-click</code> vào các phần tử có thể click</strong><br />
+										Ví dụ như các liên kết hoặc nút bấm trong nội dung thông báo.
+										<ul>
+											<li>
+											<strong>Cách 1:</strong> Mở chế độ code và thêm thủ công class
+											<code>notification-track-click</code> vào phần tử HTML.
+											</li>
+											<li>
+											<strong>Cách 2:</strong> Click chọn phần tử (như liên kết), sau đó chọn
+											<strong>Edit Class</strong> trên thanh công cụ và thêm
+											<code>notification-track-click</code> vào ô class.
+											</li>
+										</ul>
+										</li>
+									</ol>
+								</div>
+							</div>
+
+
+						</div>
+					</div>
+				</div>
+				<!-- Thông tin bổ sung -->
+				<div class="card mt-4">
+					<div class="card-header bg-light">
+						<i class="bi bi-info-circle me-2"></i> Thông tin bổ sung
+					</div>
+					<div class="card-body">
+						<div class="row g-3">
+							<div class="col-md-4">
+								<div class="form-check mb-2">
+									<input class="form-check-input" type="checkbox" asp-for="Notification.InfoMore.PopupDismissable" />
+									<label class="form-check-label" asp-for="Notification.InfoMore.PopupDismissable">
+										Cho phép đóng popup (Chỉ hiển thị loại popup)
+									</label>
+								</div>
+								<div class="form-check">
+									<input class="form-check-input" type="checkbox" asp-for="Notification.InfoMore.IsDirectLink" />
+									<label class="form-check-label" asp-for="Notification.InfoMore.IsDirectLink">
+										Là liên kết trực tiếp
+									</label>
+								</div>
+							</div>
+							<div class="col-md-4">
+								<div class="form-group mb-3">
+									<label asp-for="Notification.InfoMore.HtmlDisplayLocation" class="form-label">
+										<i class="bi bi-code-slash me-1"></i> Vị trí hiển thị HTML
+									</label>
+									<input asp-for="Notification.InfoMore.HtmlDisplayLocation" class="form-control" placeholder="Ví dụ:div#notification-container" />
+
+								</div>
+							</div>
+							<div class="col-md-4">
+								<div class="form-group mb-3">
+									<label asp-for="Notification.InfoMore.Delay" class="form-label">
+										<i class="bi bi-clock-history me-1"></i> Trễ hiển thị (giây)
+									</label>
+									<input asp-for="Notification.InfoMore.Delay" class="form-control" type="number" min="0" placeholder="Nhập thời gian trễ hiển thị" />
+									<small class="form-text text-muted">Thông báo sẽ hiển thị sau bao nhiêu giây</small>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<!-- Nút hành động -->
+				<div class="d-flex justify-content-between mt-4">
+					<a asp-area="Admin" asp-controller="Notification" asp-action="Index" class="btn btn-outline-secondary">
+						<i class="bi bi-arrow-left me-1"></i> Quay lại
+					</a>
+					<button type="submit" class="btn btn-primary">
+						<i class="bi bi-save me-1"></i> @(string.IsNullOrEmpty(Model.Notification.Id) ? "Lưu" : "Lưu thay đổi")
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>

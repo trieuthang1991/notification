@@ -1,0 +1,156 @@
+@{
+    ViewData["Title"] = "Debug Notification Client";
+    Layout = "_Layout";
+}
+
+<div class="container mt-4">
+    <h1>Debug Notification Client</h1>
+    
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Cấu hình</h5>
+                </div>
+                <div class="card-body">
+                    <form id="config-form">
+                        <div class="mb-3">
+                            <label for="apiUrl" class="form-label">API URL</label>
+                            <input type="text" class="form-control" id="apiUrl" value="/api/Notification">
+                        </div>
+                        <div class="mb-3">
+                            <label for="domain" class="form-label">Domain</label>
+                            <input type="text" class="form-control" id="domain" value="">
+                        </div>
+                        <div class="mb-3">
+                            <label for="userId" class="form-label">User ID</label>
+                            <input type="text" class="form-control" id="userId" value="debug-user">
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="debug" checked>
+                            <label class="form-check-label" for="debug">Debug Mode</label>
+                        </div>
+                        <button type="button" id="start-btn" class="btn btn-primary">Khởi chạy</button>
+                        <button type="button" id="clear-logs-btn" class="btn btn-secondary">Xóa logs</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">Console Logs</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div id="log-container" style="height: 400px; overflow-y: auto; background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; font-family: monospace; white-space: pre-wrap;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Kết quả</h5>
+                </div>
+                <div class="card-body">
+                    <div id="container-link" class="mb-3 p-3 border rounded">
+                        <h6>Container Link (<span id="link-count">0</span>)</h6>
+                    </div>
+                    <div id="notification-container" class="mb-3 p-3 border rounded">
+                        <h6>Notification Container</h6>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/notification-client.js"></script>
+    <script>
+        // Override console.log to capture logs
+        (function() {
+            var originalConsoleLog = console.log;
+            var logContainer = document.getElementById('log-container');
+            
+            console.log = function() {
+                // Call original console.log
+                originalConsoleLog.apply(console, arguments);
+                
+                // Format arguments
+                var message = Array.prototype.slice.call(arguments).map(function(arg) {
+                    if (typeof arg === 'object') {
+                        try {
+                            return JSON.stringify(arg, null, 2);
+                        } catch (e) {
+                            return arg.toString();
+                        }
+                    }
+                    return arg;
+                }).join(' ');
+                
+                // Create log entry
+                var logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                logEntry.style.marginBottom = '5px';
+                logEntry.style.borderBottom = '1px solid #e9ecef';
+                logEntry.style.paddingBottom = '5px';
+                
+                // Add timestamp
+                var timeSpan = document.createElement('span');
+                timeSpan.style.color = '#6c757d';
+                timeSpan.style.fontSize = '0.85em';
+                timeSpan.textContent = new Date().toLocaleTimeString() + ': ';
+                logEntry.appendChild(timeSpan);
+                
+                // Add message
+                var messageSpan = document.createElement('span');
+                messageSpan.style.color = '#212529';
+                
+                // Highlight NotificationClient logs
+                if (message.includes('[NotificationClient]')) {
+                    messageSpan.style.color = '#0d6efd';
+                }
+                
+                messageSpan.textContent = message;
+                logEntry.appendChild(messageSpan);
+                
+                // Add to container and scroll to bottom
+                logContainer.appendChild(logEntry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            };
+        })();
+        
+        // Initialize
+        $(document).ready(function() {
+            // Set default domain
+            $('#domain').val(window.location.hostname);
+            
+            // Start button click handler
+            $('#start-btn').click(function() {
+                var config = {
+                    apiUrl: $('#apiUrl').val(),
+                    domain: $('#domain').val(),
+                    userId: $('#userId').val(),
+                    debug: $('#debug').prop('checked'),
+                    containerLink: '#container-link',
+                    linkCountContainer: '#link-count'
+                };
+                
+                console.log('Starting NotificationClient with config:', config);
+                
+                // Create and run notification client
+                var notificationClient = new NotificationClient(config);
+                notificationClient.run();
+            });
+            
+            // Clear logs button click handler
+            $('#clear-logs-btn').click(function() {
+                $('#log-container').empty();
+            });
+        });
+    </script>
+}

@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CouchbaseNetClient" Version="2.7.8" />
+    <PackageReference Include="EPPlus" Version="6.2.10" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Serilog" Version="4.2.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="XMUtility">
+      <HintPath>..\..\..\2024\ATS_New\ATS1Solution\DLL\XMUtility.dll</HintPath>
+    </Reference>
+    <Reference Include="XUtil">
+      <HintPath>..\..\..\2024\ATS_New\ATS1Solution\DLL\XUtil.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="logs\" />
+    <Folder Include="wwwroot\lib\css\" />
+  </ItemGroup>
+</Project>

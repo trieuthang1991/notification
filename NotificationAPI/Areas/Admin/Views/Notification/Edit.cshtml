@@ -1,0 +1,206 @@
+@model NotificationViewModel
+@{
+	ViewData["Title"] = "Chỉnh sửa thông báo";
+}
+
+@section Styles {
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.9.1/summernote-bs5.min.css" integrity="sha512-rDHV59PgRefDUbMm2lSjvf0ZhXZy3wgROFyao0JxZPGho3oOuWejq/ELx0FOZJpgaE5QovVtRN65Y3rrb7JhdQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+}
+<div class="card">
+	<div class="card-header">
+		<i class="bi bi-pencil me-1"></i>
+		Chỉnh sửa thông báo
+	</div>
+	<div class="card-body">
+		<form asp-area="Admin" asp-controller="Notification" asp-action="Edit" method="post">
+			@await Html.PartialAsync("_NotificationForm", Model)
+		</form>
+	</div>
+</div>
+@section Scripts {
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.9.1/summernote-bs5.min.js" integrity="sha512-qTQLA91yGDLA06GBOdbT7nsrQY8tN6pJqjT16iTuk08RWbfYmUz/pQD3Gly1syoINyCFNsJh7A91LtrLIwODnw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+	<script>
+
+		$(document).ready(function () {
+			$('#editor').summernote({
+				height: 300,
+				codeviewFilter: false,
+				codeviewIframeFilter: false,
+				toolbar: [
+					['style', ['bold', 'italic', 'underline', 'clear']],
+					['font', ['strikethrough', 'superscript', 'subscript']],
+					['fontsize', ['fontsize']],
+					['color', ['color']],
+					['para', ['paragraph']],
+					['height', ['height']],
+					['table', ['table']],
+					['insert', ['link', 'picture', 'video']],
+					['custom', ['editClass']],
+					['view', ['codeview', 'help']]
+				],
+				buttons: {
+					editClass: function(context) {
+						var ui = $.summernote.ui;
+						var button = ui.button({
+							contents: '<i class="bi bi-code-slash"/> Edit Class',
+							tooltip: 'Edit element classes',
+							click: function() {
+								var range = context.invoke('editor.getLastRange');
+								var selectedNode = range ? range.sc : null;
+								if (!selectedNode) {
+									alert('Please select an element');
+									return;
+								}
+								var element = $(selectedNode).closest('a, button').get(0);
+								if (!element) {
+									alert('Please select a link or button first');
+									return;
+								}
+								var currentClasses = element.className || '';
+							 $('#add-class.modal').remove(); // Remove existing modals
+								var dialog = $(`
+									<div class="modal fade" tabindex="-1" id='add-class'>
+										<div class="modal-dialog">
+											<div class="modal-content">
+												<div class="modal-header">
+													<h5 class="modal-title">Edit Element Classes</h5>
+													<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+												</div>
+												<div class="modal-body">
+													<div class="mb-3">
+														<label class="form-label">Common Classes:</label>
+														<div class="btn-group mb-2" role="group">
+															<button type="button" class="btn btn-sm btn-outline-primary class-option" data-class="btn btn-primary">Primary Button</button>
+															<button type="button" class="btn btn-sm btn-outline-secondary class-option" data-class="btn btn-secondary">Secondary Button</button>
+															<button type="button" class="btn btn-sm btn-outline-success class-option" data-class="notification-track-click">Track Click</button>
+														</div>
+													</div>
+													<div class="mb-3">
+														<label class="form-label">Classes:</label>
+														<input type="text" class="form-control" id="classInput" value="${currentClasses}">
+														<small class="form-text text-muted">Separate multiple classes with spaces</small>
+													</div>
+												</div>
+												<div class="modal-footer">
+													<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+													<button type="button" class="btn btn-primary" id="saveClasses">Save Changes</button>
+												</div>
+											</div>
+										</div>
+									</div>
+								`);
+								dialog.find('.class-option').on('click', function() {
+									var classToAdd = $(this).data('class');
+									var currentVal = dialog.find('#classInput').val();
+									var classes = new Set(currentVal.split(' ').filter(c => c));
+									var classesToAdd = classToAdd.split(' ');
+									classesToAdd.forEach(cls => {
+										if (classes.has(cls)) {
+											classes.delete(cls);
+										} else {
+											classes.add(cls);
+										}
+									});
+									dialog.find('#classInput').val(Array.from(classes).join(' '));
+								});
+								dialog.find('#saveClasses').on('click', function() {
+									var newClasses = dialog.find('#classInput').val();
+									$(element).attr('class', newClasses);
+									context.invoke('editor.saveRange');
+									$('#editor').summernote('code', $('#editor').summernote('code'));
+									dialog.modal('hide');
+								});
+								$('body').append(dialog);
+								dialog.modal('show');
+								dialog.on('hidden.bs.modal', function() {
+									dialog.remove();
+								});
+							}
+						});
+						return button.render();
+					}
+				},
+				callbacks: {
+					onPaste: function(e) {
+						e.preventDefault();
+						const text = (e.originalEvent || e).clipboardData.getData('text/plain');
+						document.execCommand('insertText', false, text);
+					}
+				}
+			});
+		});
+
+		// Xử lý trường ListTime
+		function updateListTimePreview() {
+			var inputValue = $('#listTimeInput').val();
+
+			// Xóa các input hidden hiện tại
+			$('#listTimeContainer').empty();
+
+			if (!inputValue) {
+				$('#listTimePreview').html('');
+				return;
+			}
+
+			var times = inputValue.split(',').map(function(item) {
+				return parseInt(item.trim());
+			}).filter(function(item) {
+				return !isNaN(item) && item > 0;
+			});
+
+			if (times.length === 0) {
+				$('#listTimePreview').html('<span class="text-danger">Không có giá trị hợp lệ</span>');
+				return;
+			}
+
+			// Hiển thị preview
+			var html = '<span class="text-success">Thời gian hiển thị: </span>';
+			html += '<span class="badge bg-info me-1">Lần 1: Hiển thị luôn</span>';
+
+			times.forEach(function(time, index) {
+				index++;
+				html += '<span class="badge bg-info me-1">Lần ' + (index + 1) + ': ' + time + ' phút</span>';
+			});
+
+			// Nếu có nhiều hơn 3 lần hiển thị
+			html += '<span class="ms-2">Các lần tiếp theo: ' + times[times.length - 1] + ' phút</span>';
+
+			$('#listTimePreview').html(html);
+
+			// Cập nhật các input hidden
+			times.forEach(function(time, index) {
+				$('#listTimeContainer').append('<input type="hidden" name="Notification.ListTime[' + index + ']" value="' + time + '" />');
+			});
+		}
+
+		$('#listTimeInput').on('input', updateListTimePreview);
+
+		// Khởi tạo giá trị ban đầu cho ListTime nếu có
+		$(document).ready(function() {
+			var listTimeValues = [];
+			$('#listTimeContainer input[type="hidden"]').each(function() {
+				listTimeValues.push($(this).val());
+			});
+
+			if (listTimeValues.length > 0) {
+				$('#listTimeInput').val(listTimeValues.join(','));
+				updateListTimePreview();
+			}
+		});
+
+		// Xử lý form submit để chuyển đổi lại thành Unix timestamp
+		$('form').on('submit', function () {
+			$('.datepicker[data-unix="true"]').each(function () {
+				var $input = $(this);
+				var dateStr = $input.val();
+
+				if (dateStr) {
+					// Sử dụng moment.js để chuyển đổi
+					var date = moment(dateStr, "DD-MM-YYYY HH:mm");
+					var timestamp = date.unix();
+					$input.val(timestamp);
+				}
+			});
+		});
+	</script>
+}

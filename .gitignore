@@ -1,0 +1,40 @@
+# Build output
+bin/
+obj/
+*.user
+*.suo
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# Logs (Serilog rolling files)
+logs/
+*.log
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Local Claude harness files (cwd + launch config, không cần commit)
+.claude/launch.json
+
+# NuGet
+*.nupkg
+**/packages/*
+!**/packages/build/
+
+# Publish
+publish/
+*.pubxml.user
+PublishProfiles/
+
+# Backup
+*.bak
+*.orig
+
+# Secrets — commit *.example thay vì bản thật
+NotificationAPI/appsettings.json
+NotificationAPI/Data/users.json

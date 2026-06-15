@@ -1,0 +1,53 @@
+@{
+    ViewData["Title"] = "Trang chủ";
+}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-primary text-white text-center">
+                    <h2 class="my-2"><i class="bi bi-bell-fill me-2"></i>Hệ thống quản lý thông báo</h2>
+                </div>
+                <div class="card-body text-center">
+                    <h3 class="display-5 mb-4">Chào mừng đến với Notification API</h3>
+
+                    <p class="lead mb-4">
+                        Hệ thống quản lý và hiển thị thông báo cho người dùng trên nhiều nền tảng khác nhau.
+                    </p>
+
+                    <div class="d-grid gap-3 d-sm-flex justify-content-sm-center">
+                        @if (User.Identity?.IsAuthenticated == true)
+                        {
+                            <a href="@Url.Action("Index", "Home", new { area = "Admin" })" class="btn btn-primary btn-lg px-4 gap-3">
+                                <i class="bi bi-speedometer2 me-2"></i>Trang quản trị
+                            </a>
+
+                            <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-outline-secondary btn-lg px-4">
+                                    <i class="bi bi-box-arrow-right me-2"></i>Đăng xuất
+                                </button>
+                            </form>
+                        }
+                        else
+                        {
+                            <a href="@Url.Action("Login", "Account")" class="btn btn-primary btn-lg px-4 gap-3">
+                                <i class="bi bi-box-arrow-in-right me-2"></i>Đăng nhập
+                            </a>
+
+                            <a href="@Url.Action("Index", "Notification")" class="btn btn-outline-secondary btn-lg px-4">
+                                <i class="bi bi-info-circle me-2"></i>Xem API
+                            </a>
+                        }
+                    </div>
+                </div>
+                <div class="card-footer text-center py-3 bg-light">
+                    <p class="mb-0">
+                        <i class="bi bi-code-slash me-1"></i>Phiên bản 1.0 | <i class="bi bi-calendar me-1"></i>@DateTime.Now.Year
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,287 @@
+@using NotificationAPI.Enums
+@model NotificationAPI.ViewComponents.ConfigLinkEditorViewModel
+
+<div class="card mb-3 config-link-editor" id="config-link-editor-@Model.FieldName.Replace(".", "-").Replace("[", "-").Replace("]", "-")">
+	<div class="card-header bg-light">
+		<div class="d-flex justify-content-between align-items-center">
+			<div>
+				<i class="bi bi-link me-1"></i>
+				<strong>@Model.Title</strong>
+				@if (Model.IsRequired)
+				{
+					<span class="text-danger">*</span>
+				}
+			</div>
+			<div>
+				<button type="button" class="btn btn-sm btn-outline-secondary me-1 add-all-config-link" title="Thêm 'all' cho tất cả các trang">
+					<i class="bi bi-asterisk"></i> Thêm 'all'
+				</button>
+				<button type="button" class="btn btn-sm btn-primary add-config-link">
+					<i class="bi bi-plus-circle"></i> Thêm
+				</button>
+			</div>
+		</div>
+	</div>
+	<div class="card-body p-0">
+		<div class="config-links-container">
+			@if (Model.ConfigLinks.Count == 0)
+			{
+				<div class="alert alert-info m-3">
+					<i class="bi bi-info-circle me-1"></i> Chưa có cấu hình liên kết nào. Nhấn "Thêm" để bắt đầu.
+				</div>
+			}
+			else
+			{
+				<div class="table-responsive">
+					<table class="table table-bordered table-hover mb-0">
+						<thead class="table-light">
+							<tr>
+								<th style="width: 20%" title="Lấy theo path hay lấy theo path + query từ url">Loại</th>
+								<th style="width: 20%" title="So sánh bằng hay so sánh theo regex">Kiểu so sánh</th>
+								<th style="width: 50%" title="Đường dẫn cần so sánh">Giá trị</th>
+								<th style="width: 10%">Thao tác</th>
+							</tr>
+						</thead>
+						<tbody>
+							@for (int i = 0; i < Model.ConfigLinks.Count; i++)
+							{
+								var configLink = Model.ConfigLinks[i];
+								<tr class="config-link-row">
+									<td>
+										<select name="@(Model.FieldName)[@i].CLT" class="form-select form-select-sm link-type">
+											@foreach (var option in Model.LinkTypeOptions)
+											{
+												@:<option @(configLink.CLT == (ConfigLinkType)int.Parse(option.Value) ? "selected" : "") value="@option.Value">@option.Text</option>
+											}
+										</select>
+									</td>
+									<td>
+										<select name="@(Model.FieldName)[@i].CLTG" class="form-select form-select-sm link-type-get">
+											@foreach (var option in Model.LinkTypeGetOptions)
+											{
+												@:<option @(configLink.CLTG == (ConfigLinkTypeGet)int.Parse(option.Value) ? "selected" : "") value="@option.Value">@option.Text</option>
+											}
+										</select>
+									</td>
+									<td>
+										<input type="text" name="@(Model.FieldName)[@i].Value" value="@configLink.Value" class="form-control form-control-sm link-value" placeholder="Nhập giá trị" />
+									</td>
+									<td class="text-center">
+										<button type="button" class="btn btn-sm btn-danger remove-config-link">
+											<i class="bi bi-trash"></i>
+										</button>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
+	</div>
+</div>
+
+<template id="config-link-template-@Model.FieldName">
+	<tr class="config-link-row">
+		<td>
+			<select name="@(Model.FieldName)[{index}].CLT" class="form-select form-select-sm link-type">
+				@foreach (var option in Model.LinkTypeOptions)
+				{
+					<option value="@option.Value">@option.Text</option>
+				}
+			</select>
+		</td>
+		<td>
+			<select name="@(Model.FieldName)[{index}].CLTG" class="form-select form-select-sm link-type-get">
+				@foreach (var option in Model.LinkTypeGetOptions)
+				{
+					<option value="@option.Value">@option.Text</option>
+				}
+			</select>
+		</td>
+		<td>
+			<input type="text" name="@(Model.FieldName)[{index}].Value" class="form-control form-control-sm link-value" placeholder="Nhập giá trị" />
+		</td>
+		<td class="text-center">
+			<button type="button" class="btn btn-sm btn-danger remove-config-link">
+				<i class="bi bi-trash"></i>
+			</button>
+		</td>
+	</tr>
+</template>
+
+<script>
+	document.addEventListener('DOMContentLoaded', function () {
+		initConfigLinkEditor('@Model.FieldName');
+	});
+
+	function initConfigLinkEditor(fieldName) {
+		const containerId = `config-link-editor-${fieldName.replace(/\./g, '-').replace(/\[/g, '-').replace(/\]/g, '-')}`;
+		const container = document.getElementById(containerId);
+		if (!container) return;
+
+		const addButton = container.querySelector('.add-config-link');
+		const addAllButton = container.querySelector('.add-all-config-link');
+		const linksContainer = container.querySelector('.config-links-container');
+		const template = document.getElementById(`config-link-template-${fieldName}`);
+
+		// Hàm tạo hàng mới
+		const createNewRow = (value = '') => {
+			// Kiểm tra xem đã có bảng chưa
+			let table = linksContainer.querySelector('table');
+
+			// Nếu chưa có bảng, tạo bảng mới
+			if (!table) {
+				const alertInfo = linksContainer.querySelector('.alert-info');
+				if (alertInfo) alertInfo.remove();
+
+				table = document.createElement('div');
+				table.className = 'table-responsive';
+				table.innerHTML = `
+					<table class="table table-bordered table-hover mb-0">
+						<thead class="table-light">
+							<tr>
+								<th style="width: 20%" title="Lấy theo path hay lấy theo path + query từ url">Loại</th>
+								<th style="width: 20%" title="So sánh bằng hay so sánh theo regex">Kiểu so sánh</th>
+								<th style="width: 50%" title="Đường dẫn cần so sánh">Giá trị</th>
+								<th style="width: 10%">Thao tác</th>
+							</tr>
+						</thead>
+						<tbody></tbody>
+					</table>
+				`;
+				linksContainer.appendChild(table);
+				table = table.querySelector('table');
+			}
+
+			// Lấy số lượng hàng hiện tại
+			const tbody = table.querySelector('tbody');
+			const rowCount = tbody.querySelectorAll('tr').length;
+
+			// Tạo hàng mới từ template
+			const newRow = template.content.cloneNode(true);
+
+			// Cập nhật index
+			const elements = newRow.querySelectorAll('[name*="{index}"]');
+			elements.forEach(el => {
+				el.name = el.name.replace('{index}', rowCount);
+			});
+
+			// Đặt giá trị nếu có
+			if (value) {
+				const valueInput = newRow.querySelector('.link-value');
+				if (valueInput) {
+					valueInput.value = value;
+				}
+			}
+
+			// Thêm sự kiện xóa
+			const removeButton = newRow.querySelector('.remove-config-link');
+			removeButton.addEventListener('click', function() {
+				const row = this.closest('tr');
+				row.remove();
+
+				// Nếu không còn hàng nào, hiển thị thông báo
+				if (tbody.querySelectorAll('tr').length === 0) {
+					table.closest('.table-responsive').remove();
+					const alertInfo = document.createElement('div');
+					alertInfo.className = 'alert alert-info m-3';
+					alertInfo.innerHTML = '<i class="bi bi-info-circle me-1"></i> Chưa có cấu hình liên kết nào. Nhấn "Thêm" để bắt đầu.';
+					linksContainer.appendChild(alertInfo);
+				}
+
+				// Cập nhật lại index cho các hàng còn lại
+				updateIndexes(tbody, fieldName);
+			});
+
+			// Thêm hàng mới vào bảng
+			tbody.appendChild(newRow);
+
+			// Thêm hiệu ứng và focus vào trường giá trị
+			const addedRow = tbody.lastElementChild;
+			addedRow.classList.add('new-row');
+			setTimeout(() => {
+				addedRow.classList.remove('new-row');
+			}, 1000);
+
+			// Focus vào trường giá trị
+			const valueInput = addedRow.querySelector('.link-value');
+			if (valueInput) {
+				valueInput.focus();
+			}
+
+			return addedRow;
+		};
+
+		// Thêm sự kiện click cho nút thêm
+		addButton.addEventListener('click', function () {
+			createNewRow();
+		});
+
+		// Thêm sự kiện click cho nút thêm 'all'
+		addAllButton.addEventListener('click', function () {
+			// Kiểm tra xem đã có hàng nào có giá trị 'all' chưa
+			const table = linksContainer.querySelector('table');
+			if (table) {
+				const tbody = table.querySelector('tbody');
+				const rows = tbody.querySelectorAll('tr');
+				let hasAll = false;
+
+				rows.forEach(row => {
+					const valueInput = row.querySelector('.link-value');
+					if (valueInput && valueInput.value === 'all') {
+						hasAll = true;
+						// Highlight hàng đã có 'all'
+						row.classList.add('new-row');
+						setTimeout(() => {
+							row.classList.remove('new-row');
+						}, 1000);
+					}
+				});
+
+				if (hasAll) {
+					// Đã có 'all', hiển thị thông báo
+					alert('Cấu hình đã có giá trị "all" cho tất cả các trang!');
+					return;
+				}
+			}
+
+			// Tạo hàng mới với giá trị 'all'
+			createNewRow('all');
+		});
+
+		// Thêm sự kiện xóa cho các nút xóa hiện có
+		const removeButtons = container.querySelectorAll('.remove-config-link');
+		removeButtons.forEach(button => {
+			button.addEventListener('click', function() {
+				const row = this.closest('tr');
+				const tbody = row.closest('tbody');
+				row.remove();
+
+				// Nếu không còn hàng nào, hiển thị thông báo
+				if (tbody.querySelectorAll('tr').length === 0) {
+					tbody.closest('.table-responsive').remove();
+					const alertInfo = document.createElement('div');
+					alertInfo.className = 'alert alert-info m-3';
+					alertInfo.innerHTML = '<i class="bi bi-info-circle me-1"></i> Chưa có cấu hình liên kết nào. Nhấn "Thêm" để bắt đầu.';
+					linksContainer.appendChild(alertInfo);
+				}
+
+				// Cập nhật lại index cho các hàng còn lại
+				updateIndexes(tbody, fieldName);
+			});
+		});
+	}
+
+	function updateIndexes(tbody, fieldName) {
+		const rows = tbody.querySelectorAll('tr');
+		rows.forEach((row, index) => {
+			const inputs = row.querySelectorAll('input, select');
+			inputs.forEach(input => {
+				const name = input.name;
+				const newName = name.replace(/\[\d+\]/, `[${index}]`);
+				input.name = newName;
+			});
+		});
+	}
+</script>
