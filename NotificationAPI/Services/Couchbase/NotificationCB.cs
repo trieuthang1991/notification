@@ -4,8 +4,10 @@ using Couchbase.N1QL;
 
 using Couchbase.Search;
 
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using Newtonsoft.Json;
 using NotificationAPI.Config;
 using NotificationAPI.DTO.Filter;
@@ -39,6 +41,15 @@ namespace NotificationAPI.Services.Couchbase
         private readonly string _preKey;
         private readonly CouchbaseConfig _config;
         private readonly ILogger<NotificationCB> _logger;
+        private readonly IMemoryCache _cache;
+
+        // Token-based cache invalidation: mỗi domain có 1 CTS; cancel = mọi cache entry
+        // gắn token đó bị evict cùng lúc. Cho phép "Remove by prefix" mà IMemoryCache không hỗ trợ sẵn.
+        private readonly ConcurrentDictionary<string, CancellationTokenSource> _domainTokens = new();
+
+        // TTL cho maxLastUpdated cache. 60s = trade-off giữa stale window và hiệu quả cache;
+        // notification mới chủ động invalidate ngay, TTL chỉ là fallback nếu invalidate trượt.
+        private static readonly TimeSpan MaxLuCacheTtl = TimeSpan.FromSeconds(60);
 
         /// <summary>
         /// Cấu hình JsonSerializerSettings để tránh việc trùng lặp giá trị mặc định
@@ -49,9 +60,10 @@ namespace NotificationAPI.Services.Couchbase
             DefaultValueHandling = DefaultValueHandling.Populate
         };
 
-        public NotificationCB(IOptions<CouchbaseConfig> config, ILogger<NotificationCB> logger)
+        public NotificationCB(IOptions<CouchbaseConfig> config, ILogger<NotificationCB> logger, IMemoryCache cache)
         {
             _logger = logger;
+            _cache = cache;
             _logger.LogInformation("Khởi tạo NotificationCB...");
 
             // Sử dụng CouchbaseConnectionManager để lấy bucket
@@ -60,6 +72,108 @@ namespace NotificationAPI.Services.Couchbase
             _preKey = config.Value.PreKey;
             _config = config.Value;
             _logger.LogInformation("Khởi tạo NotificationCB thành công");
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // Cache helpers cho maxLastUpdated per (domain, device, triggerActions)
+        // ─────────────────────────────────────────────────────────────────
+
+        private static string BuildMaxLuKey(string domain, DeviceType device, List<string> triggerActions)
+        {
+            var ta = (triggerActions == null || triggerActions.Count == 0)
+                ? Utils.Common.All
+                : string.Join(",", triggerActions.Distinct().OrderBy(x => x, StringComparer.Ordinal));
+            return $"nof:maxLU:{domain ?? "*"}:{(int)device}:{ta}";
+        }
+
+        private void SetMaxLuCache(string domain, string cacheKey, long value)
+        {
+            var domainKey = string.IsNullOrEmpty(domain) ? "*" : domain;
+            var cts = _domainTokens.GetOrAdd(domainKey, _ => new CancellationTokenSource());
+            _cache.Set(cacheKey, value, new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = MaxLuCacheTtl,
+                Size = 1,
+                ExpirationTokens = { new CancellationChangeToken(cts.Token) }
+            });
+        }
+
+        private void InvalidateDomain(string domain)
+        {
+            var domainKey = string.IsNullOrEmpty(domain) ? "*" : domain;
+            if (_domainTokens.TryRemove(domainKey, out var cts))
+            {
+                try { cts.Cancel(); cts.Dispose(); }
+                catch (ObjectDisposedException) { /* race với invalidate khác */ }
+            }
+        }
+
+        /// <summary>
+        /// Xoá cache maxLastUpdated cho mọi (domain, device, triggers) mà notification này có thể match.
+        /// Gọi sau khi UpsertAsync/UpdateStatus/Delete để user thấy thay đổi tức thì.
+        /// </summary>
+        private void InvalidateMaxLuFor(NotificationConfig notification)
+        {
+            if (notification == null) return;
+
+            // Notification có domain="all" → ảnh hưởng MỌI domain → invalidate hết các domain đang có cache.
+            // Cách rẻ: cancel toàn bộ token đang tracked (cardinality nhỏ, bounded bởi số domain partner).
+            var domains = notification.Domains;
+            bool hasAllDomain = domains != null && domains.Contains(Utils.Common.All);
+
+            if (hasAllDomain || domains == null || domains.Count == 0)
+            {
+                foreach (var d in _domainTokens.Keys.ToList())
+                    InvalidateDomain(d);
+                return;
+            }
+
+            foreach (var domain in domains.Distinct())
+                InvalidateDomain(domain);
+
+            // Notification có domain cụ thể vẫn match được client query domain="" (server map về "all"):
+            // → cũng invalidate token "*" nếu có.
+            InvalidateDomain("*");
+        }
+
+        /// <summary>
+        /// Query Couchbase: MAX(last_updated) cho mọi notification match (domain, device, triggerActions).
+        /// KHÔNG filter user_id để cache shared cho mọi user (anonymous + logged-in).
+        /// Gọi khi cache miss.
+        /// </summary>
+        private async Task<long> QueryMaxLastUpdatedAsync(string domain, DeviceType device, List<string> triggerActions)
+        {
+            string domainField      = Fields(n => n.Domains);
+            string deviceField      = Fields(n => n.DeviceTypes);
+            string triggerField     = Fields(n => n.TriggerActions);
+            string lastUpdatedField = Fields(n => n.LastUpdated);
+
+            var sb = new StringBuilder();
+            sb.Append($"SELECT MAX(n.{lastUpdatedField}) AS max_lu FROM `{_bucket.Name}` AS n");
+            sb.Append($" WHERE n.{lastUpdatedField} IS NOT MISSING");
+
+            if (!string.IsNullOrEmpty(domain))
+                sb.Append($" AND (ARRAY_CONTAINS(n.{domainField}, '{domain}') OR ARRAY_CONTAINS(n.{domainField}, '{Utils.Common.All}'))");
+            else
+                sb.Append($" AND ARRAY_CONTAINS(n.{domainField}, '{Utils.Common.All}')");
+
+            if (device != DeviceType.All)
+                sb.Append($" AND (ARRAY_CONTAINS(n.{deviceField}, {(int)device}) OR ARRAY_CONTAINS(n.{deviceField}, {(int)DeviceType.All}))");
+
+            if (triggerActions != null && triggerActions.Count > 0)
+            {
+                var list = triggerActions.Concat(new[] { Utils.Common.All }).Distinct();
+                var ors = string.Join(" OR ", list.Select(t => $"ARRAY_CONTAINS(n.{triggerField}, '{t}')"));
+                sb.Append($" AND ({ors})");
+            }
+            else
+            {
+                sb.Append($" AND ARRAY_CONTAINS(n.{triggerField}, '{Utils.Common.All}')");
+            }
+
+            var rows = await ExecuteQueryAsync<dynamic>(sb.ToString(), null);
+            if (rows == null || rows.Count == 0 || rows[0]?.max_lu == null) return 0L;
+            return Convert.ToInt64(rows[0].max_lu);
         }
 
         /// <summary>
@@ -254,6 +368,10 @@ namespace NotificationAPI.Services.Couchbase
                 }
 
                 _logger.LogInformation("Đã lưu thông báo với ID: {Id}", id);
+
+                // Invalidate cache maxLU để user kế tiếp thấy notification mới ngay.
+                InvalidateMaxLuFor(notification);
+
                 return id;
             }
             catch (Exception ex)
@@ -272,10 +390,14 @@ namespace NotificationAPI.Services.Couchbase
         {
             try
             {
+                // Load doc TRƯỚC khi xoá để biết Domains/Devices/Triggers — cần cho cache invalidate.
+                // Nếu load fail (đã xoá hoặc lỗi), vẫn tiếp tục xoá nhưng skip invalidate (TTL 60s sẽ dọn).
+                var existing = _bucket.Get<NotificationConfig>(CreateKey(id));
                 var result = await _bucket.RemoveAsync(CreateKey(id));
                 if (result.Success)
                 {
                     _logger.LogInformation("Đã xóa thông báo với ID: {Id}", id);
+                    if (existing.Success) InvalidateMaxLuFor(existing.Value);
                     return true;
                 }
                 else if (result == null)
@@ -735,7 +857,9 @@ namespace NotificationAPI.Services.Couchbase
                 {
                     objCache.Value.Status = statusValue;
                     objCache.Value.LastUpdated = XMUtility.XUtility.UnixTime(DateTime.Now);
-                    return _bucket.Upsert(key, objCache.Value).Success;
+                    var ok = _bucket.Upsert(key, objCache.Value).Success;
+                    if (ok) InvalidateMaxLuFor(objCache.Value);
+                    return ok;
                 }
             }
             catch (Exception ex)
@@ -808,49 +932,23 @@ namespace NotificationAPI.Services.Couchbase
 
         public async Task<bool> HasRecentUpdatesInDomainAsync(string domain, DeviceType device, string userId, List<string> triggerActions, long lastUpdatedThreshold)
         {
-            string domainField = Fields(n => n.Domains);
-            string lastUpdatedField = Fields(n => n.LastUpdated);
-            string userIdField = Fields(n => n.UserId);
+            // userId KHÔNG đi vào cache key: query DB phía dưới đã bỏ filter user_id,
+            // giá trị maxLU là max của TẤT CẢ notification match domain+device+triggers
+            // (kể cả user-specific cho user khác). Đổi lại: 1 cache entry phục vụ mọi user
+            // → invalidate đúng khi admin upsert (không phụ thuộc user).
+            var cacheKey = BuildMaxLuKey(domain, device, triggerActions);
 
-
-            StringBuilder stringBuilderquery = new StringBuilder();
-            stringBuilderquery.Append($"SELECT n.id FROM {_bucket.Name} AS n WHERE n.{lastUpdatedField} > {lastUpdatedThreshold}");
-
-            if (!String.IsNullOrEmpty(domain))
+            if (_cache.TryGetValue<long>(cacheKey, out var cachedMax))
             {
-                stringBuilderquery.Append($" AND (ARRAY_CONTAINS(n.{domainField},'{domain}') OR ARRAY_CONTAINS(n.{domainField}, '{Utils.Common.All}'))");
-            }
-            else
-            {
-                stringBuilderquery.Append($" AND ARRAY_CONTAINS(n.{domainField}, '{Utils.Common.All}')");
+                return cachedMax > lastUpdatedThreshold;
             }
 
-            if (device != DeviceType.All)
-            {
-                stringBuilderquery.Append($" AND (ARRAY_CONTAINS(n.{Fields(n => n.DeviceTypes)},{(int)device}) OR ARRAY_CONTAINS(n.{Fields(n => n.DeviceTypes)}, {(int)DeviceType.All}))");
-            }
+            // Cache miss: query DB lấy MAX(last_updated) rồi cache lại TTL 60s.
+            // Token-based invalidation: nếu admin upsert trước khi TTL hết, entry sẽ bị evict ngay.
+            var maxLu = await QueryMaxLastUpdatedAsync(domain, device, triggerActions);
+            SetMaxLuCache(domain, cacheKey, maxLu);
 
-            if (!String.IsNullOrEmpty(userId))
-            {
-                stringBuilderquery.Append($" AND (n.{userIdField} = '{userId}' OR n.{userIdField} = '{Utils.Common.All}')");
-            }
-            else
-            {
-                stringBuilderquery.Append($" AND n.{userIdField} = '{Utils.Common.All}'");
-            }
-            if (triggerActions != null && triggerActions.Any())
-            {
-                triggerActions.Add(Utils.Common.All);
-                triggerActions = triggerActions.Distinct().ToList();
-                stringBuilderquery.Append($" AND (ARRAY_CONTAINS(n.{Fields(n => n.TriggerActions)}, '{string.Join("') OR ARRAY_CONTAINS(n." + Fields(n => n.TriggerActions) + ", '", triggerActions)}'))");
-            }
-            else
-            {
-                stringBuilderquery.Append($" AND ARRAY_CONTAINS(n.{Fields(n => n.TriggerActions)}, '{Utils.Common.All}')");
-            }
-            stringBuilderquery.Append($" ORDER BY n.{lastUpdatedField} DESC  LIMIT 1");
-            var result = await ExecuteQueryAsync<dynamic>(stringBuilderquery.ToString(), null);
-            return result.Count > 0;
+            return maxLu > lastUpdatedThreshold;
         }
 
         /// <summary>
@@ -1159,6 +1257,7 @@ namespace NotificationAPI.Services.Couchbase
                                 objCacheConfig.Value.Status = StatusNotification.Success;
                                 objCacheConfig.Value.LastUpdated = XMUtility.XUtility.UnixTime(DateTime.Now);
                                 _bucket.Upsert(configKey, objCacheConfig.Value, time);
+                                InvalidateMaxLuFor(objCacheConfig.Value);
                             }
                             else
                             {
@@ -1167,6 +1266,7 @@ namespace NotificationAPI.Services.Couchbase
                                     objCacheConfig.Value.Status = StatusNotification.Success;
                                     objCacheConfig.Value.LastUpdated = XMUtility.XUtility.UnixTime(DateTime.Now);
                                     _bucket.Upsert(configKey, objCacheConfig.Value, time);
+                                    InvalidateMaxLuFor(objCacheConfig.Value);
                                 }
                             }
                         }
