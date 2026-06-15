@@ -158,22 +158,34 @@ namespace NotificationAPI.Services.Couchbase
                 if (domains == null || domains.Count == 0 || domains.Contains(Utils.Common.All))
                 {
                     // Notification có domain="all" hoặc không có domain rõ → ảnh hưởng mọi domain.
-                    // Pattern unlink: dùng SCAN + UNLINK để không block server.
                     var endpoints = _redis!.GetEndPoints();
+                    int nuked = 0;
                     foreach (var ep in endpoints)
                     {
                         var server = _redis.GetServer(ep);
                         if (server.IsConnected && !server.IsReplica)
                         {
                             foreach (var key in server.Keys(pattern: $"{_redisConfig.KeyPrefix}dom:*", pageSize: 200))
+                            {
                                 _ = db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+                                nuked++;
+                            }
                         }
                     }
+                    _logger.LogInformation(
+                        "Redis cache INVALIDATE all-domain | notification.Id={NotifId} | nuked {Count} keys (domain={Domains})",
+                        notification.Id, nuked, string.Join(",", domains ?? new List<string>()));
                     return;
                 }
 
                 foreach (var d in domains.Distinct())
-                    _ = db.KeyDeleteAsync(BuildDomainHashKey(d), CommandFlags.FireAndForget);
+                {
+                    var key = BuildDomainHashKey(d);
+                    _ = db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+                    _logger.LogInformation(
+                        "Redis cache INVALIDATE | {HashKey} | notification.Id={NotifId}",
+                        key, notification.Id);
+                }
             }
             catch (Exception ex)
             {
@@ -941,23 +953,39 @@ namespace NotificationAPI.Services.Couchbase
 
         public async Task<bool> HasRecentUpdatesInDomainAsync(string domain, DeviceType device, string userId, List<string> triggerActions, long lastUpdatedThreshold)
         {
+            // Sinh field 1 lần để vừa dùng cho cache vừa log nhất quán.
+            var cacheField = BuildHashField(device, userId, triggerActions);
+            var hashKey = BuildDomainHashKey(domain);
+
             // 1. Cache layer (Redis Hash) — key per (domain, device, userId, triggers)
-            //    Đo prod: HasRecent chiếm ~68% slow query (29,364/ngày), p50 4.6s do Couchbase queue.
-            //    Cache hit → bỏ qua DB, so sánh in-memory với T client gửi.
             var cached = await TryGetCachedMaxLuAsync(domain, device, userId, triggerActions);
             if (cached.HasValue)
             {
-                return cached.Value > lastUpdatedThreshold;
+                var hit = cached.Value > lastUpdatedThreshold;
+                _logger.LogInformation(
+                    "Redis cache HIT | {HashKey} field={Field} | cachedMaxLu={CachedMaxLu} threshold={Threshold} hasRecent={HasRecent}",
+                    hashKey, cacheField, cached.Value, lastUpdatedThreshold, hit);
+                return hit;
             }
 
             // 2. Cache miss → query Couchbase MAX(last_updated) cho tuple đầy đủ.
-            //    Logic filter giữ nguyên Fix #C — chỉ đổi SELECT để lấy MAX thay vì tồn tại.
+            _logger.LogInformation(
+                "Redis cache MISS | {HashKey} field={Field} threshold={Threshold} → query DB",
+                hashKey, cacheField, lastUpdatedThreshold);
+
+            var sw = Stopwatch.StartNew();
             var maxLu = await QueryMaxLastUpdatedAsync(domain, device, userId, triggerActions);
+            sw.Stop();
 
             // 3. Cache result. Lỗi Redis được swallow trong helper, không ảnh hưởng request.
             await SetCachedMaxLuAsync(domain, device, userId, triggerActions, maxLu);
 
-            return maxLu > lastUpdatedThreshold;
+            var hasRecentAfterDb = maxLu > lastUpdatedThreshold;
+            _logger.LogInformation(
+                "Redis cache FILL | {HashKey} field={Field} | dbMaxLu={MaxLu} threshold={Threshold} hasRecent={HasRecent} dbTimeMs={DbMs}",
+                hashKey, cacheField, maxLu, lastUpdatedThreshold, hasRecentAfterDb, sw.ElapsedMilliseconds);
+
+            return hasRecentAfterDb;
         }
 
         /// <summary>
