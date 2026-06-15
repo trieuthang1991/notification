@@ -15,10 +15,10 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="XMUtility">
-      <HintPath>..\..\..\2024\ATS_New\ATS1Solution\DLL\XMUtility.dll</HintPath>
+      <HintPath>..\DLL\XMUtility.dll</HintPath>
     </Reference>
     <Reference Include="XUtil">
-      <HintPath>..\..\..\2024\ATS_New\ATS1Solution\DLL\XUtil.dll</HintPath>
+      <HintPath>..\DLL\XUtil.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
