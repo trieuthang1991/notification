@@ -6,6 +6,20 @@
 (function (window) {
     'use strict';
 
+    // Helper: tách content theo marker <!--##VARIANT##--> và pick uniform random 1 variant.
+    // Backward compat: content không có marker → trả nguyên content.
+    var _pickVariant = function (content) {
+        if (!content || typeof content !== 'string') return content || '';
+        var MARKER = '<!--##VARIANT##-->';
+        if (content.indexOf(MARKER) === -1) return content;
+        var parts = content.split(MARKER)
+            .map(function (s) { return s.replace(/^\s+|\s+$/g, ''); })
+            .filter(function (s) { return s.length > 0; });
+        if (parts.length === 0) return '';
+        if (parts.length === 1) return parts[0];
+        return parts[Math.floor(Math.random() * parts.length)];
+    };
+
     // Đối tượng NotificationClient chính
     var NotificationClient = function (config) {
         // Khởi tạo đối tượng với cấu hình mặc định
@@ -1232,7 +1246,7 @@
         // Thêm nội dung
         var body = document.createElement('div');
         body.className = 'notification-body';
-        body.innerHTML = notification.content;
+        body.innerHTML = _pickVariant(notification.content);
         content.appendChild(body);
 
         // Thêm class tracking vào tất cả các link và button trong nội dung
@@ -1501,7 +1515,7 @@
             // Sử dụng selector mặc định
             modalSelector = '#' + this.config.defaultModalId;
             // Chèn nội dung vào body
-            var modalHtml = notification.content;
+            var modalHtml = _pickVariant(notification.content);
             document.body.insertAdjacentHTML('beforeend', modalHtml);
 
 
@@ -1561,7 +1575,7 @@
             // Thêm nội dung
             var body = document.createElement('div');
             body.className = 'notification-body';
-            body.innerHTML = notification.content;
+            body.innerHTML = _pickVariant(notification.content);
             container.appendChild(body);
 
             // Xóa nội dung cũ trong phần tử nội dung modal (nếu có)
@@ -1698,7 +1712,7 @@
         // Thêm nội dung
         var content = document.createElement('div');
         content.className = 'notification-content';
-        content.innerHTML = notification.content;
+        content.innerHTML = _pickVariant(notification.content);
         htmlElement.appendChild(content);
 
         // Thêm class tracking vào tất cả các link và button trong nội dung
@@ -1754,7 +1768,7 @@
         var notificationId = notification.id;
 
         // Sử dụng content làm URL
-        var url = notification.content;
+        var url = _pickVariant(notification.content);
 
         // Tạo ID cho link
         var linkId = 'notification-link-' + notificationId;
