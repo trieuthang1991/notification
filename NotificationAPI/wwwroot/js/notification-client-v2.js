@@ -9,7 +9,7 @@
     // Helper: tách content theo marker <!--##VARIANT##--> và pick uniform random 1 variant.
     // Backward compat: content không có marker → trả nguyên content.
     var _pickVariant = function (content) {
-        if (!content || typeof content !== 'string') return content || '';
+        if (!content || typeof content !== 'string') return '';
         var MARKER = '<!--##VARIANT##-->';
         if (content.indexOf(MARKER) === -1) return content;
         var parts = content.split(MARKER)
