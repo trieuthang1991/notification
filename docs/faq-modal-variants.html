@@ -1,0 +1,78 @@
+<!-- FAQ modal variants - paste WHOLE content (1 modal wrapper + 4 modal-body siblings + 3 markers) vào field "Nội dung" của notification trong admin. JS client (_pickVariant) parse DOM, random giữ 1 modal-body, xoá 3 cái còn lại trước khi inject. - Yêu cầu trang đích đã load Bootstrap 5 (CSS + JS bundle). - 1 modal duy nhất với id="notification-default-modal" - KHÔNG bị duplicate ID. - Per-variant width: đặt data-modal-width="640" (px) hoặc data-dialog-class="modal-lg" trên modal-body. JS sẽ apply vào .modal-dialog sau khi pick. Bỏ attr = dùng max-width gốc. - Đổi URL trong "Tìm hiểu thêm" nếu cần. -->
+<div class="modal fade" id="notification-default-modal" tabindex="-1" aria-labelledby="notification-default-modal-label" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:640px;">
+    <div class="modal-content" style="border:0;border-radius:18px;overflow:hidden;background:#ffffff;">
+      <div class="modal-header" style="background:#eaf0ff;border:0;padding:14px 20px;">
+        <h5 class="modal-title d-flex align-items-center" id="notification-default-modal-label" style="font-size:15px;color:#5e6b8a;font-weight:500;">
+          <span style="display:inline-flex;width:24px;height:24px;border-radius:50%;background:#d2e2ff;align-items:center;justify-content:center;margin-right:8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <path stroke="#000ea4" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 11v6M12 7.5h.008"></path>
+              <circle cx="12" cy="12" r="9" stroke="#000ea4" stroke-width="1.8"></circle>
+            </svg>
+          </span> Câu hỏi thường gặp
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <!-- ===== VARIANT A: Cơ chế phân phối (X / Check) - modal width 640px ===== -->
+      <div class="modal-body pt-3 p-3" data-modal-width="640" style='background: linear-gradient(to bottom,#FFFFFF 0%,#F8FAFF 25%,#E6F0FF 50%,#D2E2FF 75%,#BFD8FF 100%);'>
+        <h6 class="text-center fw-bold mb-3" style="font-size:20px;color:#1d1f2a;">Tin miễn phí có cơ chế phân phối thế nào?</h6>
+        <div class="row g-3 mb-3">
+          <img class="w-100" src="https://f3-vn.joboko.com/education/giao-dien-133.png">
+        </div>
+        <div class="text-center pt-3" style='min-height:50px'>
+          <a href="https://vn.joboko.com/blog/tin-dang-mien-phi-va-tra-phi-cua-joboko-khac-nhau-nhu-the-nao-nwi6027" target="_blank" class="btn btn-outline-primary px-4" style="border-radius:8px;border-color:#c9d5ff;background-color:#fff;font-weight:500;display:unset;padding: 10px;">Tìm hiểu thêm</a>
+        </div>
+      </div>
+      <!--##VARIANT##-->
+      <!-- ===== VARIANT B: Số lượng tin đăng (single column) - modal width 480px ===== -->
+      <div class="modal-body mt-3 mb-3" data-modal-width="480">
+        <h6 class="fw-bold mb-3" style="font-size:20px;color:#1d1f2a;line-height:1.4;">Tin tuyển dụng miễn phí cạnh tranh với bao nhiêu tin đăng mỗi ngày?</h6>
+        <ul class="list-unstyled m-0 d-flex flex-column mb-3" style="gap:12px;">
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:#1d1f2a;">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="7" cy="7" r="7" fill="#D2E2FF"></circle>
+              <path d="M9.80008 5.1333L6.27091 8.86663L4.66675 7.16966" stroke="#1424D0" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg> 1.500 - 3.000 tin mới/ngày
+          </li>
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:#1d1f2a;">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="7" cy="7" r="7" fill="#D2E2FF"></circle>
+              <path d="M9.80008 5.1333L6.27091 8.86663L4.66675 7.16966" stroke="#1424D0" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg> Cơ chế hiển thị ưu tiên tin mới nhất
+          </li>
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:#1d1f2a;">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="7" cy="7" r="7" fill="#D2E2FF"></circle>
+              <path d="M9.80008 5.1333L6.27091 8.86663L4.66675 7.16966" stroke="#1424D0" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg> Dễ tuyển với vị trí ít cạnh tranh
+          </li>
+        </ul>
+        <div class="text-center pt-3" style='min-height:50px'>
+          <a href="https://vn.joboko.com/blog/tin-dang-mien-phi-va-tra-phi-cua-joboko-khac-nhau-nhu-the-nao-nwi6027" target="_blank" class="btn btn-outline-primary px-4" style="border-radius:8px;border-color:#c9d5ff;background-color:#fff;font-weight:500;display:unset;padding: 10px;">Tìm hiểu thêm</a>
+        </div>
+      </div>
+      <!--##VARIANT##-->
+      <!-- ===== VARIANT C: So sánh để chọn gói (check / check) - modal width 640px ===== -->
+      <div class="modal-body mt-3 mb-3" data-modal-width="640">
+        <h6 class="text-center fw-bold mb-3" style="font-size:20px;color:#1d1f2a;">Loại tin đăng nào sẽ phù hợp với nhu cầu của bạn?</h6>
+        <div class="row g-3 mb-3">
+          <img class="w-100" src="https://f3-vn.joboko.com/education/giao-dien-122.png">
+        </div>
+        <div class="text-center pt-3" style='min-height:50px'>
+          <a href="https://vn.joboko.com/blog/tin-dang-mien-phi-va-tra-phi-cua-joboko-khac-nhau-nhu-the-nao-nwi6027" target="_blank" class="btn btn-outline-primary px-4" style="border-radius:8px;border-color:#c9d5ff;background-color:#fff;font-weight:500;display:unset;padding: 10px;">Tìm hiểu thêm</a>
+        </div>
+      </div>
+      <!--##VARIANT##-->
+      <!-- ===== VARIANT D: Tại sao số CV không ổn định (mixed icons) - modal width 640px ===== -->
+      <div class="modal-body mt-3 mb-3" data-modal-width="640">
+        <h6 class="text-center fw-bold mb-3" style="font-size:20px;color:#1d1f2a;">Tại sao số lượng CV của tin miễn phí không ổn định?</h6>
+        <div class="row g-3 mb-3">
+          <img class="w-100" src="https://f3-vn.joboko.com/education/giao-dien-111.png">
+        </div>
+        <div class="text-center pt-3">
+          <a href="https://vn.joboko.com/blog/tin-dang-mien-phi-va-tra-phi-cua-joboko-khac-nhau-nhu-the-nao-nwi6027" target="_blank" class="btn btn-outline-primary px-4" style="border-radius:8px;border-color:#c9d5ff;background-color:#fff;font-weight:500;display:unset;padding: 10px;">Tìm hiểu thêm</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

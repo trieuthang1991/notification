@@ -2,6 +2,10 @@
 bin/
 obj/
 *.user
+
+# Node / tooling
+node_modules/
+tmp/
 *.suo
 
 # IDE

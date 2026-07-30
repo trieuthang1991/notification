@@ -1,23 +1,72 @@
 /**
  * NotificationClient - Thư viện JavaScript để hiển thị thông báo từ NotificationAPI
- * Version: 1.0.0
+ * Version: 1.1.0 (random-content-variants: DOM-pick body)
  */
 
 (function (window) {
     'use strict';
 
-    // Helper: tách content theo marker <!--##VARIANT##--> và pick uniform random 1 variant.
-    // Backward compat: content không có marker → trả nguyên content.
+    var _CLIENT_VERSION = '1.1.0';
+    var _CLIENT_BUILD = 'default';
+    try { console.log('[NotificationClient v' + _CLIENT_VERSION + ' / ' + _CLIENT_BUILD + '] random-variants DOM-pick build loaded'); } catch (e) {}
+
+    // Helper: random pick 1 variant từ content.
+    // - Pattern mới (1 modal wrapper + N modal-body siblings): parse DOM, giữ 1 .modal-body, xoá còn lại.
+    // - Pattern cũ (full modal per variant, split-by-marker): split string, pick 1 chunk.
+    // - Backward compat: content không có marker → trả nguyên content.
     var _pickVariant = function (content) {
-        if (!content || typeof content !== 'string') return '';
+        var LP = '[NotificationClient v' + _CLIENT_VERSION + ' _pickVariant]';
+        try { console.log(LP + ' called, content type=' + (typeof content) + ', length=' + (content ? content.length : 0)); } catch (e) {}
+        if (!content || typeof content !== 'string') {
+            try { console.log(LP + ' early return: non-string/empty'); } catch (e) {}
+            return '';
+        }
         var MARKER = '<!--##VARIANT##-->';
-        if (content.indexOf(MARKER) === -1) return content;
+        var markerIdx = content.indexOf(MARKER);
+        if (markerIdx === -1) {
+            try {
+                var encIdx = content.indexOf('&lt;!--##VARIANT##--&gt;');
+                console.log(LP + ' NO marker found (literal). encoded marker found at: ' + encIdx + ' — if >=0, admin form HTML-encoded the comment');
+            } catch (e) {}
+            return content;
+        }
+        try { console.log(LP + ' marker found at idx ' + markerIdx); } catch (e) {}
+        try {
+            var tmp = document.createElement('div');
+            tmp.innerHTML = content;
+            var modals = tmp.querySelectorAll('.modal');
+            try { console.log(LP + ' DOM parse: modals=' + modals.length); } catch (e) {}
+            if (modals.length === 1) {
+                var bodies = modals[0].querySelectorAll('.modal-body');
+                try { console.log(LP + ' DOM parse: modal-bodies=' + bodies.length); } catch (e) {}
+                if (bodies.length > 1) {
+                    var keepIdx = Math.floor(Math.random() * bodies.length);
+                    var kept = bodies[keepIdx];
+                    for (var i = 0; i < bodies.length; i++) {
+                        if (i !== keepIdx) bodies[i].parentNode.removeChild(bodies[i]);
+                    }
+                    var dlg = modals[0].querySelector('.modal-dialog');
+                    var w = kept.getAttribute('data-modal-width');
+                    var dlgCls = kept.getAttribute('data-dialog-class');
+                    if (dlg && w) dlg.style.maxWidth = (/^\d+$/.test(w) ? w + 'px' : w);
+                    if (dlg && dlgCls) dlg.className = (dlg.className + ' ' + dlgCls).replace(/\s+/g, ' ').trim();
+                    try { console.log(LP + ' DOM-mode: kept body idx ' + keepIdx + '/' + bodies.length + ', width=' + (w || '(default)') + ', dialogClass=' + (dlgCls || '(none)')); } catch (e) {}
+                    return tmp.innerHTML;
+                }
+            }
+            try { console.log(LP + ' DOM path NOT matched (modals!=1 or bodies<=1) → fallback split'); } catch (e) {}
+        } catch (e) {
+            try { console.log(LP + ' DOM parse threw: ' + e.message + ' → fallback split'); } catch (_) {}
+        }
         var parts = content.split(MARKER)
             .map(function (s) { return s.replace(/^\s+|\s+$/g, ''); })
             .filter(function (s) { return s.length > 0; });
+        try { console.log(LP + ' split: parts=' + parts.length); } catch (e) {}
         if (parts.length === 0) return '';
         if (parts.length === 1) return parts[0];
-        return parts[Math.floor(Math.random() * parts.length)];
+        var pickIdx = Math.floor(Math.random() * parts.length);
+        try { console.log(LP + ' split-mode: kept chunk idx ' + pickIdx + '/' + parts.length); } catch (e) {}
+        return parts[pickIdx];
     };
 
     // Đối tượng NotificationClient chính
