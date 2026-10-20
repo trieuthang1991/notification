@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ASP.NET Core 6.0 web application that delivers configurable on-page notifications (popup / inline HTML / link / modal) to external websites. The server stores notification configs and per-user view/click state in Couchbase, exposes a JSON API consumed by a JavaScript client (`wwwroot/js/notification-client*.js`) embedded by partner sites, and ships an MVC admin area for operators.
 
-The solution is single-project: `NotificationAPI.sln` -> `NotificationAPI/NotificationAPI.csproj`. There are no tests.
+The solution has the web project `NotificationAPI/NotificationAPI.csproj` and an xUnit test project `NotificationAPI.Tests` (covers `InputGuard`, `ConfigMatcher`, `ConfigSnapshot`; run `dotnet test NotificationAPI.Tests`).
 
 ## Build & Run
 
@@ -47,6 +47,14 @@ Both surfaces talk to the same `INotificationCB` (`Services/Couchbase/Notificati
 
 ### Couchbase connection lifecycle
 `CouchbaseConnectionManager` is a hand-rolled lazy singleton (double-checked lock, static `_instance`). `NotificationCB` is registered as a singleton in `Extensions/ServiceCollectionExtensions.cs::AddCacheConfiguration` and obtains its `IBucket` from the manager. `CouchbaseCleanupService` is an `IHostedService` whose `StopAsync` closes the bucket on shutdown. When changing connection code, preserve the singleton invariant - opening additional buckets per-request will exhaust connections against the live cluster.
+
+### Config snapshot (đường đọc nóng)
+`GET /api/Notification` đọc config từ snapshot trong RAM (`Services/Snapshot/*`) thay vì query N1QL mỗi request. `ConfigSnapshotRefresher` (hosted service) nạp đầy đủ mỗi `FullReloadSeconds` (60s) và nạp delta (`last_updated >= watermark - DeltaOverlapSeconds`) mỗi `RefreshSeconds` (5s). Ghi qua `NotificationCB` (`UpsertAsync`, `DeleteAsync`, đổi trạng thái) ghi xuyên vào snapshot của instance đó. Cờ `ConfigSnapshot:Enabled` (appsettings, mặc định `false`) tắt, hoặc snapshot chưa nạp/quá `MaxStaleSeconds`, thì rơi về N1QL.
+- Snapshot không giữ HTML lớn: `Content` dài hơn `Utils.Common.MaxInlineContentChars` (3000) bị bỏ trống và gắn attribute 1 (`ConfigSnapshot.ToSnapshotItem`), client lấy lại nội dung theo id từ Couchbase. Đường N1QL dùng cùng hằng số.
+- Khi sửa `GetByDomainActiveAsync`/`QueryMaxLastUpdatedAsync`, PHẢI sửa `ConfigMatcher` tương ứng (và test) để hai đường giữ cùng ngữ nghĩa.
+- `UpsertAsync` luôn đặt `LastUpdated = now`. Sửa/xóa trực tiếp trong Couchbase (ngoài app) phải tự cập nhật `last_updated`, nếu không thay đổi chỉ hiện sau lần nạp đầy đủ kế tiếp (tối đa ~60s). Xóa trực tiếp ngoài app hiện sau lần nạp đầy đủ (có thể ~70s); xóa qua app thì ngay.
+- Mỗi worker process IIS giữ một snapshot riêng (RAM nhân theo số process); nên đặt pool `AlwaysRunning` + preload để snapshot nạp ngay khi khởi động.
+- Log nạp đầy đủ (`Snapshot FULL | docs=... content_chars=... heap=... MB`) dùng để theo dõi RAM.
 
 ### Logging
 Serilog is the only logger. `Program.cs` overrides `Microsoft` and `System` categories to `Fatal` (i.e. effectively silenced) and writes daily-rolling files to `NotificationAPI/logs/notification-api-*.log`. **Note:** `appsettings.json` still has a `Logging:LogLevel` section, but Serilog ignores it - configure verbosity in `Program.cs`. `LoggingConfiguration.md` describes an older Microsoft.Extensions.Logging setup that no longer matches the code; treat it as historical context only.
