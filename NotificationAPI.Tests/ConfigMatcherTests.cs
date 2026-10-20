@@ -158,6 +158,104 @@ public class ConfigMatcherTests
     }
 
     [Fact]
+    public void Bien_ngay_bang_now_van_duoc_chon()
+    {
+        var list = new[] { Cfg("bd", start: Now), Cfg("kt", end: Now) };
+        var r = ConfigMatcher.MatchActive(list, "d", DeviceType.All, "all", null, Now);
+        Assert.Equal(2, r.Count);
+    }
+
+    [Fact]
+    public void Danh_sach_rong_khong_khop()
+    {
+        var list = new List<NotificationConfig>
+        {
+            Cfg("dom-rong", domains: Array.Empty<string>()),
+            Cfg("trg-rong", triggers: Array.Empty<string>()),
+            Cfg("dev-rong", devices: Array.Empty<DeviceType>()),
+        };
+        // device=All: chỉ domain/trigger rỗng bị loại, dev-rong vẫn khớp (không lọc device)
+        var all = ConfigMatcher.MatchActive(list, "d", DeviceType.All, "all", null, Now);
+        Assert.Equal(new[] { "dev-rong" }, Ids(all));
+        // device=Website: dev-rong cũng bị loại
+        var web = ConfigMatcher.MatchActive(list, "d", DeviceType.Website, "all", null, Now);
+        Assert.Empty(web);
+    }
+
+    [Fact]
+    public void Danh_sach_null_khong_khop_va_khong_nem_loi()
+    {
+        var a = Cfg("a"); a.Domains = null!;
+        var b = Cfg("b"); b.TriggerActions = null!;
+        var c = Cfg("c"); c.DeviceTypes = null!;
+        var list = new[] { a, b, c };
+        var web = ConfigMatcher.MatchActive(list, "d", DeviceType.Website, "all", null, Now);
+        Assert.Empty(web);
+        var any = ConfigMatcher.MatchActive(list, "d", DeviceType.All, "all", null, Now);
+        Assert.Equal(new[] { "c" }, Ids(any));
+    }
+
+    [Fact]
+    public void Client_gui_userId_all_chi_khop_config_user_all()
+    {
+        var list = new[] { Cfg("all"), Cfg("u1", userId: "u1") };
+        var r = ConfigMatcher.MatchActive(list, "d", DeviceType.All, "all", null, Now);
+        Assert.Equal(new[] { "all" }, Ids(r));
+    }
+
+    [Fact]
+    public void Trigger_client_chua_san_all_van_khop_config_all()
+    {
+        var list = new[] { Cfg("chung"), Cfg("rec1", triggers: new[] { "com_1" }) };
+        var r = ConfigMatcher.MatchActive(list, "d", DeviceType.All, "all", new[] { "all" }, Now);
+        Assert.Equal(new[] { "chung" }, Ids(r));
+    }
+
+    [Fact]
+    public void Domain_va_userId_phan_biet_hoa_thuong()
+    {
+        var list = new[]
+        {
+            Cfg("d", domains: new[] { "VN.joboko.com" }),
+            Cfg("u", userId: "UserA"),
+        };
+        Assert.Empty(ConfigMatcher.MatchActive(list, "vn.joboko.com", DeviceType.All, "usera", null, Now));
+        var r = ConfigMatcher.MatchActive(list, "VN.joboko.com", DeviceType.All, "UserA", null, Now);
+        Assert.Equal(new[] { "d", "u" }, Ids(r).OrderBy(x => x, StringComparer.Ordinal).ToArray());
+    }
+
+    [Fact]
+    public void Sap_xep_Ordinal_chu_hoa_truoc_chu_thuong()
+    {
+        var list = new[] { Cfg("a", ord: 5), Cfg("B", ord: 5) };
+        var r = ConfigMatcher.MatchActive(list, "d", DeviceType.All, "all", null, Now);
+        Assert.Equal(new[] { "B", "a" }, Ids(r).ToArray());
+    }
+
+    [Fact]
+    public void MaxLastUpdated_tinh_ca_doc_het_han()
+    {
+        var list = new[] { Cfg("a", lastUpdated: 100), Cfg("het-han", end: Now - 10, lastUpdated: 700) };
+        Assert.Equal(700, ConfigMatcher.MaxLastUpdated(list, "d", DeviceType.All, "all", null));
+    }
+
+    [Fact]
+    public void MaxLastUpdated_loc_theo_device_userId_trigger()
+    {
+        var list = new[]
+        {
+            Cfg("base", lastUpdated: 100),
+            Cfg("mobile", devices: new[] { DeviceType.Mobile }, lastUpdated: 200),
+            Cfg("u2", userId: "u2", lastUpdated: 300),
+            Cfg("rec2", triggers: new[] { "com_2" }, lastUpdated: 400),
+        };
+        Assert.Equal(100, ConfigMatcher.MaxLastUpdated(list, "d", DeviceType.Website, "u1", new[] { "com_1" }));
+        Assert.Equal(200, ConfigMatcher.MaxLastUpdated(list, "d", DeviceType.Mobile, "u1", new[] { "com_1" }));
+        Assert.Equal(300, ConfigMatcher.MaxLastUpdated(list, "d", DeviceType.Website, "u2", new[] { "com_1" }));
+        Assert.Equal(400, ConfigMatcher.MaxLastUpdated(list, "d", DeviceType.Website, "u1", new[] { "com_2" }));
+    }
+
+    [Fact]
     public void MaxLastUpdated_khong_co_doc_nao_tra_ve_0()
     {
         Assert.Equal(0, ConfigMatcher.MaxLastUpdated(Array.Empty<NotificationConfig>(), "d", DeviceType.All, "all", null));

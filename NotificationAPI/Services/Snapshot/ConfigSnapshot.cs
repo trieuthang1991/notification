@@ -13,6 +13,7 @@ namespace NotificationAPI.Services.Snapshot
         private volatile Dictionary<string, NotificationConfig>? _byId;
         private long _lastRefreshUnix;
         private long _lastFullLoadUnix;
+        private long _serverWatermark;
 
         /// <param name="clock">Trả về unix time (giây) hiện tại; truyền vào để test được.</param>
         public ConfigSnapshot(Func<long> clock)
@@ -27,19 +28,21 @@ namespace NotificationAPI.Services.Snapshot
         public IReadOnlyCollection<NotificationConfig> Items
             => (IReadOnlyCollection<NotificationConfig>?)_byId?.Values ?? Array.Empty<NotificationConfig>();
 
-        /// <summary>Max last_updated trong snapshot, dùng làm mốc cho lần nạp delta.</summary>
-        public long WatermarkLastUpdated
+        /// <summary>
+        /// Mốc last_updated cho lần nạp delta. CHỈ theo dữ liệu từ server (ReplaceAll/Merge);
+        /// Upsert/Remove cục bộ không làm thay đổi để không bỏ sót bản sửa của instance khác.
+        /// </summary>
+        public long WatermarkLastUpdated => Interlocked.Read(ref _serverWatermark);
+
+        /// <summary>Số giây kể từ lần nạp đầy đủ gần nhất (0 nếu chưa nạp).</summary>
+        public long FullLoadAgeSeconds
         {
             get
             {
-                long max = 0;
-                foreach (var c in Items) if (c.LastUpdated > max) max = c.LastUpdated;
-                return max;
+                var last = Interlocked.Read(ref _lastFullLoadUnix);
+                return last == 0 ? 0 : _clock() - last;
             }
         }
-
-        /// <summary>Số giây kể từ lần nạp đầy đủ gần nhất (0 nếu chưa nạp).</summary>
-        public long FullLoadAgeSeconds => _lastFullLoadUnix == 0 ? 0 : _clock() - _lastFullLoadUnix;
 
         /// <summary>Đã sẵn sàng và lần refresh thành công cuối cùng chưa quá maxStaleSeconds.</summary>
         public bool IsFresh(int maxStaleSeconds)
@@ -49,14 +52,17 @@ namespace NotificationAPI.Services.Snapshot
         public void ReplaceAll(IEnumerable<NotificationConfig> all)
         {
             var next = new Dictionary<string, NotificationConfig>(StringComparer.Ordinal);
+            long max = 0;
             foreach (var c in all)
             {
                 if (string.IsNullOrEmpty(c.Id)) continue;
                 next[c.Id] = c;
+                if (c.LastUpdated > max) max = c.LastUpdated;
             }
             lock (_gate)
             {
                 _byId = next;
+                Interlocked.Exchange(ref _serverWatermark, max);
                 var now = _clock();
                 Interlocked.Exchange(ref _lastRefreshUnix, now);
                 Interlocked.Exchange(ref _lastFullLoadUnix, now);
@@ -74,13 +80,16 @@ namespace NotificationAPI.Services.Snapshot
                 var current = _byId;
                 if (current == null) return; // chưa nạp đầy đủ thì chưa gộp delta
                 var next = new Dictionary<string, NotificationConfig>(current, StringComparer.Ordinal);
+                long wm = Interlocked.Read(ref _serverWatermark);
                 foreach (var c in delta)
                 {
                     if (string.IsNullOrEmpty(c.Id)) continue;
+                    if (c.LastUpdated > wm) wm = c.LastUpdated;
                     if (next.TryGetValue(c.Id, out var existing) && existing.LastUpdated > c.LastUpdated) continue;
                     next[c.Id] = c;
                 }
                 _byId = next;
+                Interlocked.Exchange(ref _serverWatermark, wm);
                 Interlocked.Exchange(ref _lastRefreshUnix, _clock());
             }
         }

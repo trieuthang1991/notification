@@ -10,7 +10,7 @@ namespace NotificationAPI.Utils
     {
         // \z (không dùng $) để từ chối chuỗi có ký tự xuống dòng ở cuối.
         private static readonly Regex DomainRegex =
-            new(@"^[a-z0-9]([a-z0-9.\-]{0,251}[a-z0-9])?(:\d{1,5})?\z", RegexOptions.Compiled);
+            new(@"^[a-z0-9]([a-z0-9.\-]{0,251}[a-z0-9])?(:[0-9]{1,5})?\z", RegexOptions.Compiled);
 
         private static readonly Regex TokenRegex =
             new(@"^[A-Za-z0-9_\-.:]{1,100}\z", RegexOptions.Compiled);

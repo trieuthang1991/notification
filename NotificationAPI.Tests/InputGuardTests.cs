@@ -32,6 +32,20 @@ public class InputGuardTests
     }
 
     [Fact]
+    public void Domain_port_chu_so_unicode_bi_tu_choi()
+    {
+        Assert.False(InputGuard.TryNormalizeDomain("a.com:١٢٣", out _));
+    }
+
+    [Fact]
+    public void Domain_co_xuong_dong_cuoi_duoc_trim_thanh_gia_tri_sach()
+    {
+        // Trim loại ký tự xuống dòng cuối. Caller PHẢI dùng giá trị normalized, không dùng input gốc.
+        Assert.True(InputGuard.TryNormalizeDomain("a.com\n", out var normalized));
+        Assert.Equal("a.com", normalized);
+    }
+
+    [Fact]
     public void Domain_qua_dai_bi_tu_choi()
     {
         Assert.False(InputGuard.TryNormalizeDomain(new string('a', 300) + ".com", out _));
