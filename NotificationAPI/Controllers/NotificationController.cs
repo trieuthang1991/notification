@@ -129,7 +129,7 @@ namespace NotificationAPI.Controllers
         {
             try
             {
-                var ids = strIds.Split(',').ToList();
+                var ids = (strIds ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
                 var notification = await _notificationCB.GetContentByIdsAsync(ids);
                 if (notification == null)
                 {

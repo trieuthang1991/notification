@@ -404,53 +404,34 @@ namespace NotificationAPI.Services.Couchbase
         /// </summary>
         /// <param name="ids">Danh sách ID cần lấy</param>
         /// <returns>Danh sách các thông báo tương ứng</returns>
+        private const int MaxContentIdsPerCall = 50;
+
         public async Task<List<NotificationConfig>> GetContentByIdsAsync(List<string> ids)
         {
             try
             {
-                if (ids == null || ids.Count == 0)
+                // KV get theo key thay cho N1QL IN: client gọi mỗi lần xem trang cho config bị cắt content.
+                // Bỏ id sai định dạng/trùng, giới hạn số lượng mỗi lần gọi.
+                var keys = (ids ?? new List<string>())
+                    .Where(Utils.InputGuard.IsValidToken)
+                    .Distinct()
+                    .Take(MaxContentIdsPerCall)
+                    .ToList();
+                if (keys.Count == 0)
                 {
                     return new List<NotificationConfig>();
                 }
 
-                // Lấy trường Id của NotificationConfig
-                string idField = Fields(n => n.Id);
-
-                // Chọn các trường cần lấy
-                string fieldsGet = JsonPropertyHelper.CreateN1qlSelectFields<NotificationConfig>(n => n.Id, n => n.Title, n => n.Content, n => n.Status);
-
-                // Tạo truy vấn N1QL sử dụng IN để lấy nhiều document cùng lúc
-                string query = $@"
-                    SELECT {fieldsGet}
-                    FROM `{_bucket.Name}` n
-                    WHERE n.{idField} IN $ids AND n.{Fields(n => n.LastUpdated)} >= 0";
-
-                var parameters = new[]
+                var tasks = keys.Select(async id =>
                 {
-                    new KeyValuePair<string, object>("$ids", ids),
-
-                };
-
-                var results = await ExecuteQueryAsync<dynamic>(query, parameters);
-
-                var notifications = new List<NotificationConfig>();
-                foreach (var result in results)
-                {
-                    try
-                    {
-                        var notification = Newtonsoft.Json.JsonConvert.DeserializeObject<NotificationConfig>(result.ToString(), _jsonSettings);
-                        if (notification != null)
-                        {
-                            notifications.Add(notification);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Lỗi khi chuyển đổi thông báo: {Message}", ex.Message);
-                    }
-                }
-
-                return notifications;
+                    var doc = await _bucket.GetAsync<NotificationConfig>(CreateKey(id)).ConfigureAwait(false);
+                    if (!doc.Success || doc.Value == null) return null;
+                    var c = doc.Value;
+                    // Chỉ trả 4 trường như truy vấn N1QL cũ
+                    return new NotificationConfig { Id = c.Id, Title = c.Title, Content = c.Content, Status = c.Status };
+                });
+                var found = await Task.WhenAll(tasks).ConfigureAwait(false);
+                return found.Where(c => c != null).Select(c => c!).ToList();
             }
             catch (Exception ex)
             {
@@ -1587,7 +1568,7 @@ namespace NotificationAPI.Services.Couchbase
 
             // 🔎 Log danh sách key (giới hạn 20 cái đầu cho an toàn)
             var previewKeys = string.Join(", ", keys.Take(20));
-            _logger.LogInformation("KV MultiGet Keys Preview ({Count}): {Keys}", totalKeys, previewKeys);
+            _logger.LogDebug("KV MultiGet Keys Preview ({Count}): {Keys}", totalKeys, previewKeys);
 
             var throttler = new SemaphoreSlim(50);
 
@@ -1618,7 +1599,7 @@ namespace NotificationAPI.Services.Couchbase
 
             sw.Stop();
 
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "KV MultiGet NotificationStatus DONE | Keys: {TotalKeys} | Found: {SuccessCount} | Time: {ElapsedMs} ms",
                 totalKeys,
                 successCount,
