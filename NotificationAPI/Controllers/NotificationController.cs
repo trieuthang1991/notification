@@ -4,6 +4,7 @@ using NotificationAPI.DTO.Filter;
 using NotificationAPI.Models;
 using NotificationAPI.Services;
 using NotificationAPI.Services.Couchbase;
+using NotificationAPI.Utils;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -37,9 +38,16 @@ namespace NotificationAPI.Controllers
         {
             try
             {
+                // Kiểm tra định dạng đầu vào trước khi đưa vào query/key Couchbase
+                if (!InputGuard.TryNormalizeDomain(filter.Domain, out var domain)
+                    || (!string.IsNullOrEmpty(filter.UserId) && !InputGuard.IsValidToken(filter.UserId))
+                    || !InputGuard.AreValidTokens(filter.TriggerAction))
+                {
+                    return BadRequest("Tham số domain, userId hoặc triggerAction không hợp lệ");
+                }
+                filter.Domain = domain;
+
                 var notifications = await _notificationCB.GetActiveNotificationsAsync(filter);
-
-
                 return Ok(notifications);
             }
             catch (Exception ex)
@@ -253,6 +261,13 @@ namespace NotificationAPI.Controllers
                 {
                     return BadRequest("NotificationId hoặc UserId không được để trống");
                 }
+                if (!InputGuard.TryNormalizeDomain(statusUpdate.Domain, out var domain)
+                    || !InputGuard.IsValidToken(statusUpdate.NotificationId)
+                    || !InputGuard.IsValidToken(statusUpdate.UserId))
+                {
+                    return BadRequest("NotificationId, UserId hoặc Domain không hợp lệ");
+                }
+                statusUpdate.Domain = domain;
                 if (statusUpdate.RemainingShows > 1)
                 {
                     statusUpdate.RemainingShows = 1;
@@ -295,13 +310,20 @@ namespace NotificationAPI.Controllers
                 {
                     return BadRequest("Thông tin cập nhật không hợp lệ");
                 }
+                if (!InputGuard.TryNormalizeDomain(seenUpdate.Domain, out var domain)
+                    || !InputGuard.IsValidToken(seenUpdate.NotificationId)
+                    || !InputGuard.IsValidToken(seenUpdate.UserId))
+                {
+                    return BadRequest("NotificationId, UserId hoặc Domain không hợp lệ");
+                }
+                seenUpdate.Domain = domain;
 
                 // Chuyển đổi từ NotificationSeenUpdate sang NotificationStatusUpdate
                 var statusUpdate = new NotificationStatus
                 {
                     NotificationId = seenUpdate.NotificationId,
                     UserId = seenUpdate.UserId,
-                    Domain = seenUpdate.Domain,
+                    Domain = domain,
                     LastClick = XMUtility.XUtility.UnixTime(DateTime.Now) // Thời gian hiện tại
                 };
 

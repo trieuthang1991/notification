@@ -774,10 +774,10 @@ namespace NotificationAPI.Services.Couchbase
             }
             if (triggerActions != null && triggerActions.Any())
             {
-                // Thêm 'all' rồi distinct → list các trigger client gửi + fallback 'all'
-                var triggerList = triggerActions.Concat(new[] { Utils.Common.All }).Distinct();
-                var inList = string.Join(",", triggerList.Select(t => $"'{t}'"));
-                stringBuilderquery.Append($" AND ANY ta IN n.{Fields(n => n.TriggerActions)} SATISFIES ta IN [{inList}] END");
+                // Thêm 'all' rồi distinct → list các trigger client gửi + fallback 'all' (truyền như tham số, không nối chuỗi)
+                var triggerList = triggerActions.Concat(new[] { Utils.Common.All }).Distinct().ToList();
+                stringBuilderquery.Append($" AND ANY ta IN n.{Fields(n => n.TriggerActions)} SATISFIES ta IN $triggers END");
+                lstParam.Add(new KeyValuePair<string, object>("$triggers", triggerList));
             }
             else
             {
@@ -999,11 +999,15 @@ namespace NotificationAPI.Services.Couchbase
             string lastUpdatedField = Fields(n => n.LastUpdated);
             string userIdField = Fields(n => n.UserId);
 
+            var lstParam = new List<KeyValuePair<string, object>>();
             StringBuilder sb = new StringBuilder();
             sb.Append($"SELECT MAX(n.{lastUpdatedField}) AS max_lu FROM {_bucket.Name} AS n WHERE n.{lastUpdatedField} IS NOT MISSING");
 
             if (!string.IsNullOrEmpty(domain))
-                sb.Append($" AND ANY d IN n.{domainField} SATISFIES d IN ['{domain}', '{Utils.Common.All}'] END");
+            {
+                sb.Append($" AND ANY d IN n.{domainField} SATISFIES d IN [$domain, '{Utils.Common.All}'] END");
+                lstParam.Add(new KeyValuePair<string, object>("$domain", domain));
+            }
             else
                 sb.Append($" AND ANY d IN n.{domainField} SATISFIES d = '{Utils.Common.All}' END");
 
@@ -1011,22 +1015,25 @@ namespace NotificationAPI.Services.Couchbase
                 sb.Append($" AND ANY dt IN n.{Fields(n => n.DeviceTypes)} SATISFIES dt IN [{(int)device}, {(int)DeviceType.All}] END");
 
             if (!string.IsNullOrEmpty(userId))
-                sb.Append($" AND (n.{userIdField} = '{userId}' OR n.{userIdField} = '{Utils.Common.All}')");
+            {
+                sb.Append($" AND (n.{userIdField} = $userId OR n.{userIdField} = '{Utils.Common.All}')");
+                lstParam.Add(new KeyValuePair<string, object>("$userId", userId));
+            }
             else
                 sb.Append($" AND n.{userIdField} = '{Utils.Common.All}'");
 
             if (triggerActions != null && triggerActions.Any())
             {
-                var triggerList = triggerActions.Concat(new[] { Utils.Common.All }).Distinct();
-                var inList = string.Join(",", triggerList.Select(t => $"'{t}'"));
-                sb.Append($" AND ANY ta IN n.{Fields(n => n.TriggerActions)} SATISFIES ta IN [{inList}] END");
+                var triggerList = triggerActions.Concat(new[] { Utils.Common.All }).Distinct().ToList();
+                sb.Append($" AND ANY ta IN n.{Fields(n => n.TriggerActions)} SATISFIES ta IN $triggers END");
+                lstParam.Add(new KeyValuePair<string, object>("$triggers", triggerList));
             }
             else
             {
                 sb.Append($" AND ANY ta IN n.{Fields(n => n.TriggerActions)} SATISFIES ta = '{Utils.Common.All}' END");
             }
 
-            var rows = await ExecuteQueryAsync<dynamic>(sb.ToString(), null);
+            var rows = await ExecuteQueryAsync<dynamic>(sb.ToString(), lstParam.ToArray());
             if (rows == null || rows.Count == 0 || rows[0]?.max_lu == null) return 0L;
             return Convert.ToInt64(rows[0].max_lu);
         }
