@@ -133,6 +133,18 @@ namespace NotificationAPI.Models
         public long LastUpdated { get; set; } = XMUtility.XUtility.UnixTime(DateTime.Now);
         [JsonProperty("date_created")]
         public long DateCreated { get; set; } = XMUtility.XUtility.UnixTime(DateTime.Now);
+        /// <summary>
+        /// Bản sao dùng cho response: sao chép nông + sao chép riêng danh sách Attributes
+        /// (GetActiveNotificationsAsync sửa Content và Attributes của đối tượng trả về).
+        /// Các danh sách còn lại chỉ đọc nên dùng chung với bản gốc.
+        /// </summary>
+        public NotificationConfig CloneForResponse()
+        {
+            var clone = (NotificationConfig)MemberwiseClone();
+            clone.Attributes = new List<int>(Attributes ?? new List<int>());
+            return clone;
+        }
+
         public NotificationConfig()
         {
 
