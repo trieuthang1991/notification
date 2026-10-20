@@ -455,6 +455,8 @@ namespace NotificationAPI.Services.Couchbase
                     notification.Content = XMUtility.XUtility.StripHTML(notification.Content);
                 // Gán ID cho notification
                 notification.Id = id;
+                // Mọi lần lưu config đều đánh dấu thay đổi: client và delta của snapshot dựa vào last_updated
+                notification.LastUpdated = XMUtility.XUtility.UnixTime(DateTime.Now);
 
                 TimeSpan time = Utils.Common.TimeUntil(XMUtility.XUtility.UnixTime(notification.EndDate));
                 _logger.LogInformation("Thời gian hết hạn của thông báo: {Time}", time.TotalDays);
