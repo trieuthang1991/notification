@@ -95,7 +95,23 @@ namespace NotificationAPI.Services.Couchbase
         // ─────────────────────────────────────────────────────────────────
 
         /// <summary>Snapshot dùng được: bật, đã nạp và còn tươi.</summary>
-        private bool SnapshotUsable => _snapshotConfig.Enabled && _snapshot.IsFresh(_snapshotConfig.MaxStaleSeconds);
+        private bool SnapshotUsable
+        {
+            get
+            {
+                if (!_snapshotConfig.Enabled) return false;
+                bool usable = _snapshot.IsFresh(_snapshotConfig.MaxStaleSeconds);
+                // Chỉ log khi đổi trạng thái (không log mỗi request)
+                int now = usable ? 1 : 0;
+                if (Interlocked.Exchange(ref _snapshotUsableState, now) != now)
+                {
+                    if (usable) _logger.LogInformation("Snapshot dùng lại được → request đọc từ RAM");
+                    else _logger.LogWarning("Snapshot KHÔNG dùng được (chưa nạp hoặc quá {Stale}s không làm mới) → request đi N1QL", _snapshotConfig.MaxStaleSeconds);
+                }
+                return usable;
+            }
+        }
+        private int _snapshotUsableState = -1;
 
         /// <summary>
         /// Gọi sau khi một config được lưu thành công: xóa cache Redis và ghi xuyên vào snapshot
@@ -146,13 +162,22 @@ namespace NotificationAPI.Services.Couchbase
 
             if (full)
             {
+                string reason = forceFull ? "ép nạp"
+                    : !_snapshot.IsReady ? "chưa có snapshot (khởi động/lỗi trước đó)"
+                    : $"quá {_snapshotConfig.FullReloadSeconds}s kể từ lần nạp đầy đủ trước";
+                var before = _snapshot.Items.Select(c => c.Id).ToHashSet();
+
                 var all = await LoadConfigsAsync(null);
                 _snapshot.ReplaceAll(all);
                 long contentChars = all.Sum(c => (long)(c.Content?.Length ?? 0));
                 int trimmed = all.Count(c => c.Attributes.Contains(1) && string.IsNullOrEmpty(c.Content));
+                // removed/added: doc biến mất/xuất hiện so với snapshot trước (xóa/thêm trực tiếp ngoài app chỉ lộ ra ở đây)
+                var nowIds = all.Select(c => c.Id).ToHashSet();
+                int removed = before.Count(id => !nowIds.Contains(id));
+                int added = before.Count == 0 ? 0 : nowIds.Count(id => !before.Contains(id));
                 _logger.LogInformation(
-                    "Snapshot FULL | docs={Count} | content_chars={ContentChars} | content_rong_attr1={Trimmed} | {Ms} ms | heap={HeapMb} MB",
-                    all.Count, contentChars, trimmed, sw.ElapsedMilliseconds, GC.GetTotalMemory(false) / 1024 / 1024);
+                    "Snapshot FULL | lý do={Reason} | docs={Count} (+{Added}/-{Removed}) | content_chars={ContentChars} | content_rong_attr1={Trimmed} | {Ms} ms | heap={HeapMb} MB",
+                    reason, all.Count, added, removed, contentChars, trimmed, sw.ElapsedMilliseconds, GC.GetTotalMemory(false) / 1024 / 1024);
             }
             else
             {
