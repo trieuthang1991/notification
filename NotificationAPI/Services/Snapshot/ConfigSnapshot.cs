@@ -21,6 +21,22 @@ namespace NotificationAPI.Services.Snapshot
             _clock = clock;
         }
 
+        /// <summary>
+        /// Tạo bản lưu vào snapshot: bản sao (không sửa object gốc của caller) và KHÔNG giữ HTML lớn
+        /// trong RAM. Content dài hơn ngưỡng thì bỏ trống và gắn attribute 1 (client lấy lại nội dung
+        /// theo id từ Couchbase), tương đương đoạn xử lý ở GetActiveNotificationsAsync.
+        /// </summary>
+        public static NotificationConfig ToSnapshotItem(NotificationConfig c)
+        {
+            var clone = c.CloneForResponse();
+            if (!string.IsNullOrEmpty(clone.Content) && clone.Content.Length > Utils.Common.MaxInlineContentChars)
+            {
+                clone.Content = string.Empty;
+                if (!clone.Attributes.Contains(1)) clone.Attributes.Add(1);
+            }
+            return clone;
+        }
+
         /// <summary>Đã nạp đầy đủ ít nhất một lần.</summary>
         public bool IsReady => _byId != null;
 

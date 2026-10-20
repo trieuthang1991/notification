@@ -11,6 +11,7 @@ using NotificationAPI.Config;
 using NotificationAPI.DTO.Filter;
 using NotificationAPI.Enums;
 using NotificationAPI.Models;
+using NotificationAPI.Services.Snapshot;
 using NotificationAPI.Utils;
 using StackExchange.Redis;
 using System;
@@ -45,6 +46,10 @@ namespace NotificationAPI.Services.Couchbase
         private readonly IConnectionMultiplexer? _redis;
         private readonly RedisConfig _redisConfig;
 
+        // Snapshot config trong RAM (xem Services/Snapshot). Chỉ dùng khi _snapshotConfig.Enabled.
+        private readonly ConfigSnapshotConfig _snapshotConfig;
+        private readonly ConfigSnapshot _snapshot;
+
         /// <summary>
         /// Cấu hình JsonSerializerSettings để tránh việc trùng lặp giá trị mặc định
         /// </summary>
@@ -58,11 +63,14 @@ namespace NotificationAPI.Services.Couchbase
             IOptions<CouchbaseConfig> config,
             ILogger<NotificationCB> logger,
             IConnectionMultiplexer? redis,
-            RedisConfig redisConfig)
+            RedisConfig redisConfig,
+            ConfigSnapshotConfig? snapshotConfig = null)
         {
             _logger = logger;
             _redis = redis;
             _redisConfig = redisConfig ?? new RedisConfig();
+            _snapshotConfig = snapshotConfig ?? new ConfigSnapshotConfig();
+            _snapshot = new ConfigSnapshot(() => XMUtility.XUtility.UnixTime(DateTime.Now));
 
             _logger.LogInformation("Khởi tạo NotificationCB...");
 
@@ -81,6 +89,80 @@ namespace NotificationAPI.Services.Couchbase
         // ─────────────────────────────────────────────────────────────────
 
         private bool CacheEnabled => _redis != null && _redisConfig.Enabled && _redis.IsConnected;
+
+        // ─────────────────────────────────────────────────────────────────
+        // Config snapshot trong RAM
+        // ─────────────────────────────────────────────────────────────────
+
+        /// <summary>Snapshot dùng được: bật, đã nạp và còn tươi.</summary>
+        private bool SnapshotUsable => _snapshotConfig.Enabled && _snapshot.IsFresh(_snapshotConfig.MaxStaleSeconds);
+
+        /// <summary>
+        /// Gọi sau khi một config được lưu thành công: xóa cache Redis và ghi xuyên vào snapshot
+        /// (bản sao đã cắt Content lớn, không sửa object của caller).
+        /// </summary>
+        private void AfterConfigChanged(NotificationConfig config)
+        {
+            InvalidateMaxLuFor(config);
+            if (_snapshotConfig.Enabled) _snapshot.Upsert(ConfigSnapshot.ToSnapshotItem(config));
+        }
+
+        /// <summary>
+        /// Nạp config từ Couchbase. Khác ExecuteQueryAsync: lỗi được ném ra (không nuốt thành list rỗng),
+        /// để một lần nạp hỏng không xóa mất snapshot đang dùng.
+        /// since = null: nạp toàn bộ; ngược lại chỉ nạp doc có last_updated >= since.
+        /// Kết quả đã qua ToSnapshotItem (Content lớn bị cắt, không giữ trong RAM).
+        /// </summary>
+        private async Task<List<NotificationConfig>> LoadConfigsAsync(long? since)
+        {
+            string lu = Fields(n => n.LastUpdated);
+            var sql = since.HasValue
+                ? $"SELECT n.* FROM {_bucket.Name} n WHERE n.{lu} >= $since"
+                : $"SELECT n.* FROM {_bucket.Name} n WHERE n.{lu} IS NOT MISSING";
+
+            IQueryRequest req = new QueryRequest(sql).Timeout(TimeSpan.FromSeconds(60));
+            if (since.HasValue)
+                req.AddNamedParameter(new KeyValuePair<string, object>("$since", since.Value));
+
+            var result = await _bucket.QueryAsync<NotificationConfig>(req);
+            if (!result.Success)
+            {
+                var detail = result.Errors != null && result.Errors.Count > 0
+                    ? string.Join("; ", result.Errors.Select(e => e.Message))
+                    : result.Message;
+                throw new InvalidOperationException($"Nạp snapshot config lỗi: {detail}");
+            }
+            return result.Rows.Select(ConfigSnapshot.ToSnapshotItem).ToList();
+        }
+
+        public async Task RefreshConfigSnapshotAsync(bool forceFull = false)
+        {
+            if (!_snapshotConfig.Enabled) return;
+
+            var sw = Stopwatch.StartNew();
+            bool full = forceFull
+                        || !_snapshot.IsReady
+                        || _snapshot.FullLoadAgeSeconds >= _snapshotConfig.FullReloadSeconds;
+
+            if (full)
+            {
+                var all = await LoadConfigsAsync(null);
+                _snapshot.ReplaceAll(all);
+                long contentChars = all.Sum(c => (long)(c.Content?.Length ?? 0));
+                int trimmed = all.Count(c => c.Attributes.Contains(1) && string.IsNullOrEmpty(c.Content));
+                _logger.LogInformation(
+                    "Snapshot FULL | docs={Count} | content_chars={ContentChars} | content_rong_attr1={Trimmed} | {Ms} ms | heap={HeapMb} MB",
+                    all.Count, contentChars, trimmed, sw.ElapsedMilliseconds, GC.GetTotalMemory(false) / 1024 / 1024);
+            }
+            else
+            {
+                var since = Math.Max(0, _snapshot.WatermarkLastUpdated - _snapshotConfig.DeltaOverlapSeconds);
+                var delta = await LoadConfigsAsync(since);
+                _snapshot.Merge(delta);
+                if (delta.Count > 0)
+                    _logger.LogInformation("Snapshot DELTA | docs={Count} since={Since} | {Ms} ms", delta.Count, since, sw.ElapsedMilliseconds);
+            }
+        }
 
         /// <summary>
         /// Hash key cho 1 domain. Mọi (device, userId, triggers) entry cho domain này
@@ -387,7 +469,7 @@ namespace NotificationAPI.Services.Couchbase
                 _logger.LogInformation("Đã lưu thông báo với ID: {Id}", id);
 
                 // Invalidate Redis cache để user kế tiếp thấy notification mới ngay.
-                InvalidateMaxLuFor(notification);
+                AfterConfigChanged(notification);
 
                 return id;
             }
@@ -414,6 +496,7 @@ namespace NotificationAPI.Services.Couchbase
                 {
                     _logger.LogInformation("Đã xóa thông báo với ID: {Id}", id);
                     if (existing.Success) InvalidateMaxLuFor(existing.Value);
+                    if (_snapshotConfig.Enabled) _snapshot.Remove(id);
                     return true;
                 }
                 else if (result == null)
@@ -692,7 +775,7 @@ namespace NotificationAPI.Services.Couchbase
                         if (attributes.Contains(1))
                             notification.Content = string.Empty;
 
-                        if (!String.IsNullOrEmpty(notification.Content) && notification.Content.Length > 3000)
+                        if (!String.IsNullOrEmpty(notification.Content) && notification.Content.Length > Utils.Common.MaxInlineContentChars)
                         {
                             notification.Content = string.Empty;
                             attributes.Add(1);
@@ -729,6 +812,13 @@ namespace NotificationAPI.Services.Couchbase
         /// <returns>Danh sách các thông báo phù hợp</returns>
         public async Task<List<NotificationConfig>> GetByDomainActiveAsync(string domain, DeviceType device, string userId, int status, List<string> triggerActions)
         {
+            if (status == (int)StatusNotification.Active && SnapshotUsable)
+            {
+                return ConfigMatcher.MatchActive(
+                    _snapshot.Items, domain, device, userId, triggerActions,
+                    XMUtility.XUtility.UnixTime(DateTime.Now));
+            }
+
             string domainField = Fields(n => n.Domains);
             string statusField = Fields(n => n.Status);
             string orderField = Fields(n => n.Order);
@@ -879,7 +969,7 @@ namespace NotificationAPI.Services.Couchbase
                     objCache.Value.Status = statusValue;
                     objCache.Value.LastUpdated = XMUtility.XUtility.UnixTime(DateTime.Now);
                     var ok = _bucket.Upsert(key, objCache.Value).Success;
-                    if (ok) InvalidateMaxLuFor(objCache.Value);
+                    if (ok) AfterConfigChanged(objCache.Value);
                     return ok;
                 }
             }
@@ -953,6 +1043,12 @@ namespace NotificationAPI.Services.Couchbase
 
         public async Task<bool> HasRecentUpdatesInDomainAsync(string domain, DeviceType device, string userId, List<string> triggerActions, long lastUpdatedThreshold)
         {
+            if (SnapshotUsable)
+            {
+                var maxLuSnapshot = ConfigMatcher.MaxLastUpdated(_snapshot.Items, domain, device, userId, triggerActions);
+                return maxLuSnapshot > lastUpdatedThreshold;
+            }
+
             // Sinh field 1 lần để vừa dùng cho cache vừa log nhất quán.
             var cacheField = BuildHashField(device, userId, triggerActions);
             var hashKey = BuildDomainHashKey(domain);
@@ -1344,7 +1440,7 @@ namespace NotificationAPI.Services.Couchbase
                                 objCacheConfig.Value.Status = StatusNotification.Success;
                                 objCacheConfig.Value.LastUpdated = XMUtility.XUtility.UnixTime(DateTime.Now);
                                 _bucket.Upsert(configKey, objCacheConfig.Value, time);
-                                InvalidateMaxLuFor(objCacheConfig.Value);
+                                AfterConfigChanged(objCacheConfig.Value);
                             }
                             else
                             {
@@ -1353,7 +1449,7 @@ namespace NotificationAPI.Services.Couchbase
                                     objCacheConfig.Value.Status = StatusNotification.Success;
                                     objCacheConfig.Value.LastUpdated = XMUtility.XUtility.UnixTime(DateTime.Now);
                                     _bucket.Upsert(configKey, objCacheConfig.Value, time);
-                                    InvalidateMaxLuFor(objCacheConfig.Value);
+                                    AfterConfigChanged(objCacheConfig.Value);
                                 }
                             }
                         }

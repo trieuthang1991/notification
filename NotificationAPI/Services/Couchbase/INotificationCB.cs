@@ -127,5 +127,11 @@ namespace NotificationAPI.Services.Couchbase
         /// </summary>
         /// <returns>Danh sách ID của các thông báo đã tạo</returns>
         Task<List<string>> AddJobokoSampleNotificationsAsync();
+
+        /// <summary>
+        /// Làm mới snapshot config trong RAM. forceFull=true buộc nạp lại toàn bộ.
+        /// Ném exception nếu nạp lỗi (snapshot cũ được giữ nguyên).
+        /// </summary>
+        Task RefreshConfigSnapshotAsync(bool forceFull = false);
     }
 }

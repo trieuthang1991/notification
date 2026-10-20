@@ -3,6 +3,12 @@
     public class Common
     {
         public const string All = "all";
+
+        /// <summary>
+        /// Ngưỡng số ký tự Content được trả inline. Dài hơn thì Content bị bỏ trống và gắn
+        /// attribute 1 (client tự lấy lại nội dung theo id). Dùng chung cho đường N1QL và snapshot RAM.
+        /// </summary>
+        public const int MaxInlineContentChars = 3000;
         // get atttibute name notificationConfig
 
 
