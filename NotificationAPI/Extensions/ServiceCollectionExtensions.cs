@@ -26,6 +26,9 @@ namespace NotificationAPI.Extensions
             var redisOptions = config.GetSection("Redis").Get<RedisConfig>() ?? new RedisConfig();
             services.AddSingleton(redisOptions);
 
+            var snapshotOptions = config.GetSection("ConfigSnapshot").Get<ConfigSnapshotConfig>() ?? new ConfigSnapshotConfig();
+            services.AddSingleton(snapshotOptions);
+
             services.AddSingleton<IConnectionMultiplexer?>(sp =>
             {
                 var logger = sp.GetRequiredService<ILogger<NotificationCB>>();
@@ -64,11 +67,15 @@ namespace NotificationAPI.Extensions
                     Microsoft.Extensions.Options.Options.Create(couchbaseOptions),
                     logger,
                     redis,
-                    redisOptions);
+                    redisOptions,
+                    snapshotOptions);
             });
 
             // Đăng ký dịch vụ dọn dẹp Couchbase
             services.AddHostedService<CouchbaseCleanupService>();
+
+            // Làm mới snapshot config trong RAM (no-op khi ConfigSnapshot:Enabled=false)
+            services.AddHostedService<NotificationAPI.Services.Snapshot.ConfigSnapshotRefresher>();
 
             // Đăng ký các dịch vụ cache khác (giữ nguyên)
             services.AddMemoryCache();
